@@ -1,0 +1,105 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="FlowRunFinderV2.MainWindow"
+        Title="Flow Run Finder V2"
+        Width="1120"
+        Height="760"
+        MinWidth="860"
+        MinHeight="560">
+  <Grid RowDefinitions="Auto,Auto,*" Margin="18" RowSpacing="14">
+    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+      <TextBlock Text="Environment URL" VerticalAlignment="Center" />
+      <TextBox x:Name="EnvironmentUrlTextBox"
+               Grid.Column="1"
+               Watermark="https://yourorg.crm.dynamics.com" />
+      <Button x:Name="ConnectButton"
+              Grid.Column="2"
+              Content="Connect"
+              Click="OnConnectClicked" />
+    </Grid>
+
+    <Grid Grid.Row="1" RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
+      <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+        <TextBlock Text="Flow" VerticalAlignment="Center" />
+        <ComboBox x:Name="FlowComboBox"
+                  Grid.Column="1"
+                  MinHeight="32"
+                  SelectionChanged="OnFlowSelectionChanged" />
+        <Button x:Name="RefreshRunsButton"
+                Grid.Column="2"
+                Content="Refresh Runs"
+                IsEnabled="False"
+                Click="OnRefreshRunsClicked" />
+      </Grid>
+
+      <Border Grid.Row="1"
+              BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+              BorderThickness="1"
+              Padding="10"
+              IsVisible="False"
+              x:Name="DeviceCodePanel">
+        <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10" RowSpacing="6">
+          <TextBlock x:Name="DeviceCodeMessageTextBlock"
+                     Grid.ColumnSpan="3"
+                     TextWrapping="Wrap" />
+          <TextBlock Grid.Row="1"
+                     Text="URL"
+                     VerticalAlignment="Center" />
+          <TextBlock x:Name="DeviceCodeUrlTextBlock"
+                     Grid.Row="1"
+                     Grid.Column="1"
+                     VerticalAlignment="Center"
+                     TextTrimming="CharacterEllipsis" />
+          <Button x:Name="CopyDeviceUrlButton"
+                  Grid.Row="1"
+                  Grid.Column="2"
+                  Width="34"
+                  Height="30"
+                  Padding="7"
+                  ToolTip.Tip="Copy login URL"
+                  Click="OnCopyDeviceUrlClicked">
+            <PathIcon Data="M8,2 L18,2 L18,14 L8,14 Z M5,6 L5,18 L15,18 L15,16 L7,16 L7,6 Z" />
+          </Button>
+          <TextBlock Grid.Row="2"
+                     Text="Code"
+                     VerticalAlignment="Center" />
+          <TextBlock x:Name="DeviceCodeTextBlock"
+                     Grid.Row="2"
+                     Grid.Column="1"
+                     VerticalAlignment="Center"
+                     FontWeight="SemiBold" />
+          <Button x:Name="CopyDeviceCodeButton"
+                  Grid.Row="2"
+                  Grid.Column="2"
+                  Width="34"
+                  Height="30"
+                  Padding="7"
+                  ToolTip.Tip="Copy device code"
+                  Click="OnCopyDeviceCodeClicked">
+            <PathIcon Data="M8,2 L18,2 L18,14 L8,14 Z M5,6 L5,18 L15,18 L15,16 L7,16 L7,6 Z" />
+          </Button>
+        </Grid>
+      </Border>
+
+      <TextBlock x:Name="StatusTextBlock"
+                 Grid.Row="2"
+                 Text="Not connected." />
+    </Grid>
+
+    <DataGrid x:Name="RunsDataGrid"
+              Grid.Row="2"
+              AutoGenerateColumns="False"
+              IsReadOnly="True"
+              GridLinesVisibility="Horizontal"
+              HeadersVisibility="Column"
+              CanUserResizeColumns="True">
+      <DataGrid.Columns>
+        <DataGridTextColumn Header="Started" Binding="{Binding StartedOn}" Width="170" />
+        <DataGridTextColumn Header="Ended" Binding="{Binding EndedOn}" Width="170" />
+        <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="110" />
+        <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*" />
+        <DataGridTextColumn Header="Duration" Binding="{Binding Duration}" Width="140" />
+      </DataGrid.Columns>
+    </DataGrid>
+  </Grid>
+</Window>
