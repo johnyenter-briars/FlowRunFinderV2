@@ -18,6 +18,7 @@ public sealed partial class MainWindow : Window
     private const int FixedRunColumnCount = 4;
 
     private readonly AppDataStore _appDataStore = new();
+    private readonly AppLogger _logger;
     private readonly ObservableCollection<CloudFlow> _flows = new();
     private readonly ObservableCollection<FlowRun> _runs = new();
     private readonly ObservableCollection<TriggerColumnOption> _triggerColumnOptions = new();
@@ -37,6 +38,7 @@ public sealed partial class MainWindow : Window
     {
         InitializeComponent();
         SetWindowIcon();
+        _logger = new AppLogger(_appDataStore.LogsFolder);
 
         FlowComboBox.ItemsSource = _flows;
         RunsDataGrid.ItemsSource = _runs;
@@ -58,11 +60,14 @@ public sealed partial class MainWindow : Window
         {
             _settings = await _appDataStore.LoadSettingsAsync();
             NormalizeSettings();
+            _logger.SetVerbosity(_settings.LogVerbosity);
+            _logger.Info("Application opened.");
             await SelectStartupConnectionAsync();
         }
         catch (Exception ex)
         {
             SetStatus($"Could not load cached settings: {ex.Message}");
+            _logger.Error("Startup failed.", ex);
         }
     }
 
@@ -86,7 +91,10 @@ public sealed partial class MainWindow : Window
         }
 
         _settings.DefaultRunCount = result.DefaultRunCount;
+        _settings.LogVerbosity = result.LogVerbosity;
+        _logger.SetVerbosity(_settings.LogVerbosity);
         await _appDataStore.SaveSettingsAsync(_settings);
+        _logger.Info($"Settings saved. DefaultRunCount={_settings.DefaultRunCount}; LogVerbosity={_settings.LogVerbosity}.");
         SetStatus($"Settings saved. Default run query count is {_settings.DefaultRunCount}.");
     }
 
@@ -233,6 +241,8 @@ public sealed partial class MainWindow : Window
         await RunUiActionAsync(async cancellationToken =>
         {
             _currentConnection = connection;
+            _logger.SetConnection(connection);
+            _logger.Info("Opening connection.");
             _environmentUrl = new Uri(connection.EnvironmentUrl);
             _authService = new DataverseAuthService(_appDataStore.GetDataverseTokenCachePath(connection.Id));
             _powerAutomateAuthService = new PowerAutomateAuthService(_appDataStore.GetPowerAutomateTokenCachePath(connection.Id));
@@ -260,6 +270,7 @@ public sealed partial class MainWindow : Window
             _client = new DataverseClient(_environmentUrl, token.AccessToken);
 
             SetStatus($"Connected. Token expires {token.ExpiresOn.LocalDateTime:g}. Loading flows...");
+            _logger.Info($"Dataverse authentication succeeded. TokenExpires={token.ExpiresOn:O}.");
             await LoadFlowsAsync(cancellationToken);
         });
     }
@@ -280,6 +291,7 @@ public sealed partial class MainWindow : Window
         AdvancedSearchButton.IsEnabled = false;
 
         var flows = await _client.GetCloudFlowsAsync(cancellationToken);
+        _logger.Info($"Loaded flows. Count={flows.Count}.");
         foreach (var flow in flows)
         {
             _flows.Add(flow);
@@ -302,6 +314,7 @@ public sealed partial class MainWindow : Window
             ResetRunColumns();
             ResetTriggerColumnOptions(clearKnownKeys: true);
             SetStatus($"Loading latest {_settings.DefaultRunCount} runs for {flow.Name}...");
+            _logger.Info($"Loading latest runs. FlowId={flow.WorkflowId}; FlowName={flow.Name}; Top={_settings.DefaultRunCount}.");
 
             if (_powerAutomateAuthService is null)
             {
@@ -313,8 +326,9 @@ public sealed partial class MainWindow : Window
                 cancellationToken);
             ClearDeviceCodePrompt();
 
-            using var paClient = new PowerAutomateClient(paToken.AccessToken);
+            using var paClient = new PowerAutomateClient(paToken.AccessToken, _logger);
             var environmentId = await paClient.DetectEnvironmentIdAsync(_environmentUrl, cancellationToken);
+            _logger.Debug($"Detected Power Automate environment. EnvironmentId={environmentId ?? "<null>"}.");
             if (string.IsNullOrWhiteSpace(environmentId))
             {
                 SetStatus("Could not detect the matching Power Automate environment id.");
@@ -341,6 +355,7 @@ public sealed partial class MainWindow : Window
             SetTriggerColumnOptions(flow, triggerKeys);
 
             RefreshRunsButton.IsEnabled = true;
+            _logger.Info($"Latest runs loaded. FlowId={flow.WorkflowId}; Runs={_runs.Count}; TriggerKeys={triggerKeys.Count}.");
             SetStatus($"Loaded {_runs.Count} runs for {flow.Name}.");
         });
     }
@@ -358,6 +373,7 @@ public sealed partial class MainWindow : Window
             ResetRunColumns();
             ResetTriggerColumnOptions(clearKnownKeys: false);
             SetStatus($"Searching runs for {flow.Name}...");
+            _logger.Info($"Advanced search started. FlowId={flow.WorkflowId}; FlowName={flow.Name}; StartUtc={request.StartUtc:O}; EndUtc={request.EndUtc:O}; Criteria={FormatCriteria(request.Criteria)}.");
 
             if (_powerAutomateAuthService is null)
             {
@@ -369,8 +385,9 @@ public sealed partial class MainWindow : Window
                 cancellationToken);
             ClearDeviceCodePrompt();
 
-            using var paClient = new PowerAutomateClient(paToken.AccessToken);
+            using var paClient = new PowerAutomateClient(paToken.AccessToken, _logger);
             var environmentId = await paClient.DetectEnvironmentIdAsync(_environmentUrl, cancellationToken);
+            _logger.Debug($"Detected Power Automate environment for advanced search. EnvironmentId={environmentId ?? "<null>"}.");
             if (string.IsNullOrWhiteSpace(environmentId))
             {
                 SetStatus("Could not detect the matching Power Automate environment id.");
@@ -405,6 +422,7 @@ public sealed partial class MainWindow : Window
             }
 
             RefreshRunsButton.IsEnabled = true;
+            _logger.Info($"Advanced search finished. FlowId={flow.WorkflowId}; ResultCount={_runs.Count}; TriggerKeys={triggerKeys.Count}.");
             SetStatus($"Found {_runs.Count} runs for {flow.Name}.");
         });
     }
@@ -549,6 +567,7 @@ public sealed partial class MainWindow : Window
         catch (Exception ex)
         {
             SetStatus(ex.Message);
+            _logger.Error("UI action failed.", ex);
         }
         finally
         {
@@ -590,6 +609,17 @@ public sealed partial class MainWindow : Window
     private void NormalizeSettings()
     {
         _settings.DefaultRunCount = Math.Clamp(_settings.DefaultRunCount, 1, 100);
+        if (!Enum.IsDefined(_settings.LogVerbosity))
+        {
+            _settings.LogVerbosity = LogVerbosity.Info;
+        }
+    }
+
+    private static string FormatCriteria(IReadOnlyDictionary<string, string> criteria)
+    {
+        return criteria.Count == 0
+            ? "<none>"
+            : string.Join("; ", criteria.Select(criterion => $"{criterion.Key}={criterion.Value}"));
     }
 
     private void SetStatus(string message)

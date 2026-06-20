@@ -8,6 +8,7 @@ Standalone .NET 8 Avalonia app for browsing Power Automate flow runs from a Data
 - Authenticate with device-code login.
 - Cache connection-specific MSAL tokens under `%LOCALAPPDATA%\FlowRunFinderV2\connections\{connection-guid}`.
 - Store app-level settings in `%LOCALAPPDATA%\FlowRunFinderV2\settings.json`.
+- Write daily logs to `%LOCALAPPDATA%\FlowRunFinderV2\logs`.
 - Load cloud flows from the `workflow` table.
 - Pick a flow and load the latest 10 runs from the Power Platform environment API by default.
 - Authenticate separately to Power Automate when needed.
@@ -33,3 +34,4 @@ dotnet run --project .\src\FlowRunFinderV2\FlowRunFinderV2\FlowRunFinderV2.cspro
 If your tenant blocks the default public client id, create an app registration with public client/device-code support and replace `DefaultClientId` in `src/FlowRunFinderV2/FlowRunFinderV2/Services/DataverseAuthService.cs`.
 
 The default run query count can be changed from the in-app Settings dialog.
+Log verbosity can also be changed from Settings.

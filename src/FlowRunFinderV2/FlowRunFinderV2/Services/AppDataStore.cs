@@ -15,11 +15,13 @@ public sealed class AppDataStore
 
     private string SettingsPath => Path.Combine(AppDataFolder, "settings.json");
     public string ConnectionsFolder => Path.Combine(AppDataFolder, "connections");
+    public string LogsFolder => Path.Combine(AppDataFolder, "logs");
 
     public AppDataStore()
     {
         Directory.CreateDirectory(AppDataFolder);
         Directory.CreateDirectory(ConnectionsFolder);
+        Directory.CreateDirectory(LogsFolder);
     }
 
     public async Task<AppSettings> LoadSettingsAsync(CancellationToken cancellationToken = default)
@@ -113,7 +115,17 @@ public sealed class AppDataStore
 public sealed class AppSettings
 {
     public int DefaultRunCount { get; set; } = 10;
+    public LogVerbosity LogVerbosity { get; set; } = LogVerbosity.Info;
     public Dictionary<string, List<string>> SelectedTriggerColumnsByFlowId { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+}
+
+public enum LogVerbosity
+{
+    Off = 0,
+    Error = 1,
+    Info = 2,
+    Debug = 3,
+    Trace = 4
 }
 
 public sealed class ConnectionProfile

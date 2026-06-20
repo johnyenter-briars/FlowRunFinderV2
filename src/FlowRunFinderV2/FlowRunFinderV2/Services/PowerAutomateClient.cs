@@ -10,9 +10,11 @@ public sealed class PowerAutomateClient : IDisposable
     private const int AdvancedSearchRunLimit = 1000;
     private readonly HttpClient _httpClient = new();
     private readonly HttpClient _sasHttpClient = new();
+    private readonly AppLogger? _logger;
 
-    public PowerAutomateClient(string accessToken)
+    public PowerAutomateClient(string accessToken, AppLogger? logger = null)
     {
+        _logger = logger;
         _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
         _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         _sasHttpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
@@ -60,6 +62,7 @@ public sealed class PowerAutomateClient : IDisposable
     {
         var baseUrl = BuildPowerPlatformFlowBaseUrl(environmentId, flowId);
         var url = $"{baseUrl}/runs?api-version=1";
+        _logger?.Debug($"Power Platform latest-runs request. FlowId={flowId}; Top={top}; Url={url}.");
         using var document = await GetJsonAsync(url, cancellationToken).ConfigureAwait(false);
         var result = new List<FlowRun>();
 
@@ -75,6 +78,7 @@ public sealed class PowerAutomateClient : IDisposable
             result.Add(flowRun);
         }
 
+        _logger?.Debug($"Power Platform latest-runs response processed. FlowId={flowId}; Runs={result.Count}.");
         return result;
     }
 
@@ -90,20 +94,29 @@ public sealed class PowerAutomateClient : IDisposable
         var nextUrl = $"{baseUrl}/runs?api-version=1";
         var result = new List<FlowRun>();
         var inspected = 0;
+        var page = 0;
+        var reachedOlderThanStart = false;
+        _logger?.Info($"Power Platform advanced search request. FlowId={flowId}; StartUtc={startUtc:O}; EndUtc={endUtc:O}; Criteria={FormatCriteria(criteria)}; Limit={AdvancedSearchRunLimit}.");
 
-        while (!string.IsNullOrWhiteSpace(nextUrl) && inspected < AdvancedSearchRunLimit)
+        while (!string.IsNullOrWhiteSpace(nextUrl) && inspected < AdvancedSearchRunLimit && !reachedOlderThanStart)
         {
+            page++;
+            _logger?.Debug($"Advanced search page request. FlowId={flowId}; Page={page}; Url={nextUrl}.");
             using var document = await GetJsonAsync(nextUrl, cancellationToken).ConfigureAwait(false);
             if (!document.RootElement.TryGetProperty("value", out var runs))
             {
+                _logger?.Debug($"Advanced search page had no value array. FlowId={flowId}; Page={page}.");
                 break;
             }
 
+            var pageRows = 0;
             foreach (var run in runs.EnumerateArray())
             {
+                pageRows++;
                 inspected++;
                 if (inspected > AdvancedSearchRunLimit)
                 {
+                    _logger?.Info($"Advanced search inspection limit reached. FlowId={flowId}; Limit={AdvancedSearchRunLimit}.");
                     break;
                 }
 
@@ -112,24 +125,40 @@ public sealed class PowerAutomateClient : IDisposable
 
                 if (flowRun.StartedOn is null)
                 {
+                    _logger?.Debug($"Advanced search skipped run with no start time. FlowId={flowId}; RunName={flowRun.Name}; RunId={flowRun.RunId}.");
                     continue;
                 }
 
                 var startedUtc = flowRun.StartedOn.Value.ToUniversalTime();
-                if (startedUtc < startUtc || startedUtc > endUtc)
+                if (startedUtc > endUtc)
                 {
+                    _logger?.Trace($"Advanced search skipped run newer than end UTC. FlowId={flowId}; RunName={flowRun.Name}; StartedUtc={startedUtc:O}; EndUtc={endUtc:O}.");
                     continue;
                 }
 
-                if (MatchesCriteria(flowRun, criteria))
+                if (startedUtc < startUtc)
+                {
+                    reachedOlderThanStart = true;
+                    _logger?.Info($"Advanced search reached run older than start UTC; stopping scan. FlowId={flowId}; RunName={flowRun.Name}; StartedUtc={startedUtc:O}; StartUtc={startUtc:O}; Inspected={inspected}; Matches={result.Count}.");
+                    break;
+                }
+
+                if (MatchesCriteria(flowRun, criteria, out var criteriaDiagnostic))
                 {
                     result.Add(flowRun);
+                    _logger?.Debug($"Advanced search matched run. FlowId={flowId}; RunName={flowRun.Name}; StartedUtc={startedUtc:O}; TriggerKeys={flowRun.TriggerInputs.Count}.");
+                }
+                else
+                {
+                    _logger?.Debug($"Advanced search rejected run by criteria. FlowId={flowId}; RunName={flowRun.Name}; StartedUtc={startedUtc:O}; Reason={criteriaDiagnostic}; TriggerKeys={flowRun.TriggerInputs.Count}.");
                 }
             }
 
             nextUrl = GetNextLink(document.RootElement);
+            _logger?.Debug($"Advanced search page processed. FlowId={flowId}; Page={page}; PageRows={pageRows}; Inspected={inspected}; Matches={result.Count}; HasNext={!string.IsNullOrWhiteSpace(nextUrl)}.");
         }
 
+        _logger?.Info($"Power Platform advanced search complete. FlowId={flowId}; Inspected={inspected}; Matches={result.Count}; StoppedOlderThanStart={reachedOlderThanStart}.");
         return result;
     }
 
@@ -156,6 +185,7 @@ public sealed class PowerAutomateClient : IDisposable
 
         await LoadTriggerOutputsFromRunContentAsync(environmentId, baseUrl, run, flowRun, cancellationToken)
             .ConfigureAwait(false);
+        _logger?.Trace($"Created flow run. RunName={flowRun.Name}; Status={flowRun.Status}; Started={flowRun.StartedOn:O}; TriggerKeys={flowRun.TriggerInputs.Count}.");
 
         return flowRun;
     }
@@ -180,21 +210,27 @@ public sealed class PowerAutomateClient : IDisposable
                root.GetStringOrDefault("nextPageLink");
     }
 
-    private static bool MatchesCriteria(FlowRun run, IReadOnlyDictionary<string, string> criteria)
+    private static bool MatchesCriteria(
+        FlowRun run,
+        IReadOnlyDictionary<string, string> criteria,
+        out string diagnostic)
     {
         foreach (var criterion in criteria)
         {
             if (!run.TriggerInputs.TryGetValue(criterion.Key, out var actualValue))
             {
+                diagnostic = $"MissingField:{criterion.Key}";
                 return false;
             }
 
             if (!string.Equals(actualValue, criterion.Value, StringComparison.OrdinalIgnoreCase))
             {
+                diagnostic = $"ValueMismatch:{criterion.Key}; Expected={criterion.Value}; Actual={actualValue}";
                 return false;
             }
         }
 
+        diagnostic = "Matched";
         return true;
     }
 
@@ -225,12 +261,14 @@ public sealed class PowerAutomateClient : IDisposable
             {
                 var runName = Uri.EscapeDataString(flowRun.Name);
                 var detailUrl = $"{flowBaseUrl}/runs/{runName}?api-version=1";
+                _logger?.Trace($"Loading run detail. RunName={flowRun.Name}; Url={detailUrl}.");
                 detailDocument = await GetJsonAsync(detailUrl, cancellationToken).ConfigureAwait(false);
                 sourceRun = detailDocument.RootElement;
             }
         }
         catch (HttpRequestException)
         {
+            _logger?.Debug($"Run detail request failed; using list payload. RunName={flowRun.Name}.");
             detailDocument?.Dispose();
             detailDocument = null;
             sourceRun = runFromList;
@@ -246,15 +284,18 @@ public sealed class PowerAutomateClient : IDisposable
 
             if (flowRun.TriggerInputs.Count > 0)
             {
+                _logger?.Trace($"Trigger content loaded. RunName={flowRun.Name}; TriggerKeys={flowRun.TriggerInputs.Count}.");
                 return;
             }
         }
-        catch (HttpRequestException)
+        catch (HttpRequestException ex)
         {
+            _logger?.Debug($"Trigger content request failed. RunName={flowRun.Name}; Error={ex.Message}");
             // Keep the run visible even if trigger content has expired or is unavailable.
         }
-        catch (JsonException)
+        catch (JsonException ex)
         {
+            _logger?.Debug($"Trigger content parsing failed. RunName={flowRun.Name}; Error={ex.Message}");
             // Keep the run visible even if this trigger content shape is unexpected.
         }
         finally
@@ -276,6 +317,7 @@ public sealed class PowerAutomateClient : IDisposable
 
         if (!string.IsNullOrWhiteSpace(link))
         {
+            _logger?.Trace($"Loading trigger content from signed/direct link. Signed={HasSignedPowerPlatformContentQuery(link)}.");
             var client = HasSignedPowerPlatformContentQuery(link) ? _sasHttpClient : _httpClient;
             using var response = await client.GetAsync(link, cancellationToken).ConfigureAwait(false);
             var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
@@ -300,6 +342,13 @@ public sealed class PowerAutomateClient : IDisposable
         }
 
         throw new JsonException("Run trigger does not contain outputsLink, inputsLink, outputs, or inputs.");
+    }
+
+    private static string FormatCriteria(IReadOnlyDictionary<string, string> criteria)
+    {
+        return criteria.Count == 0
+            ? "<none>"
+            : string.Join("; ", criteria.Select(criterion => $"{criterion.Key}={criterion.Value}"));
     }
 
     private static string? GetTriggerContentLink(JsonElement trigger, string linkPropertyName)
