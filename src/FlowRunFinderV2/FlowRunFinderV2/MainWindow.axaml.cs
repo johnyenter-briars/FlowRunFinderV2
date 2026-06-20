@@ -364,6 +364,7 @@ public sealed partial class MainWindow : Window
             ClearDeviceCodePrompt();
 
             using var paClient = new PowerAutomateClient(paToken.AccessToken, _logger);
+            var queryEngine = new FlowRunQueryEngine(paClient, _logger);
             var environmentId = await paClient.DetectEnvironmentIdAsync(_environmentUrl, cancellationToken);
             _logger.Debug($"Detected Power Automate environment. EnvironmentId={environmentId ?? "<null>"}.");
             if (string.IsNullOrWhiteSpace(environmentId))
@@ -372,7 +373,7 @@ public sealed partial class MainWindow : Window
                 return;
             }
 
-            var runs = await paClient.GetLatestRunsFromPowerPlatformApiAsync(
+            var runs = await queryEngine.GetLatestRunsAsync(
                 environmentId,
                 flow.WorkflowId,
                 _settings.DefaultRunCount,
@@ -423,6 +424,7 @@ public sealed partial class MainWindow : Window
             ClearDeviceCodePrompt();
 
             using var paClient = new PowerAutomateClient(paToken.AccessToken, _logger);
+            var queryEngine = new FlowRunQueryEngine(paClient, _logger);
             var environmentId = await paClient.DetectEnvironmentIdAsync(_environmentUrl, cancellationToken);
             _logger.Debug($"Detected Power Automate environment for advanced search. EnvironmentId={environmentId ?? "<null>"}.");
             if (string.IsNullOrWhiteSpace(environmentId))
@@ -431,7 +433,7 @@ public sealed partial class MainWindow : Window
                 return;
             }
 
-            var runs = await paClient.SearchRunsFromPowerPlatformApiAsync(
+            var runs = await queryEngine.SearchRunsAsync(
                 environmentId,
                 flow.WorkflowId,
                 request.StartUtc,

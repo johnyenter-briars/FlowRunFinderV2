@@ -7,7 +7,6 @@ namespace FlowRunFinderV2.Services;
 public sealed class PowerAutomateClient : IDisposable
 {
     private const string ApiVersion = "2016-11-01";
-    private const int AdvancedSearchRunLimit = 1000;
     private readonly HttpClient _httpClient = new();
     private readonly HttpClient _sasHttpClient = new();
     private readonly AppLogger? _logger;
@@ -54,132 +53,45 @@ public sealed class PowerAutomateClient : IDisposable
         return null;
     }
 
-    public async Task<IReadOnlyList<FlowRun>> GetLatestRunsFromPowerPlatformApiAsync(
+    public async Task<PowerAutomateRunPage> GetRunsPageAsync(
         string environmentId,
         Guid flowId,
-        int top,
         CancellationToken cancellationToken)
     {
         var baseUrl = BuildPowerPlatformFlowBaseUrl(environmentId, flowId);
         var url = $"{baseUrl}/runs?api-version=1";
-        _logger?.Debug($"Power Platform latest-runs request. FlowId={flowId}; Top={top}; Url={url}.");
-        using var document = await GetJsonAsync(url, cancellationToken).ConfigureAwait(false);
-        var result = new List<FlowRun>();
-
-        if (!document.RootElement.TryGetProperty("value", out var runs))
-        {
-            return result;
-        }
-
-        foreach (var run in runs.EnumerateArray().Take(top))
-        {
-            var flowRun = await CreateFlowRunAsync(environmentId, baseUrl, run, cancellationToken)
-                .ConfigureAwait(false);
-            result.Add(flowRun);
-        }
-
-        _logger?.Debug($"Power Platform latest-runs response processed. FlowId={flowId}; Runs={result.Count}.");
-        return result;
+        return await GetRunsPageAsync(url, cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<IReadOnlyList<FlowRun>> SearchRunsFromPowerPlatformApiAsync(
+    public async Task<PowerAutomateRunPage> GetRunsPageAsync(string pageUrl, CancellationToken cancellationToken)
+    {
+        _logger?.Debug($"Power Platform run page request. Url={pageUrl}.");
+        using var document = await GetJsonAsync(pageUrl, cancellationToken).ConfigureAwait(false);
+        var runs = document.RootElement.TryGetProperty("value", out var runArray)
+            ? runArray.EnumerateArray().Select(run => run.Clone()).ToList()
+            : [];
+
+        return new PowerAutomateRunPage(runs, GetNextLink(document.RootElement));
+    }
+
+    public async Task LoadTriggerOutputsAsync(
         string environmentId,
         Guid flowId,
-        DateTimeOffset startUtc,
-        DateTimeOffset endUtc,
-        IReadOnlyDictionary<string, string> criteria,
+        JsonElement run,
+        FlowRun flowRun,
         CancellationToken cancellationToken)
     {
         var baseUrl = BuildPowerPlatformFlowBaseUrl(environmentId, flowId);
-        var nextUrl = $"{baseUrl}/runs?api-version=1";
-        var result = new List<FlowRun>();
-        var inspected = 0;
-        var page = 0;
-        var reachedOlderThanStart = false;
-        _logger?.Info($"Power Platform advanced search request. FlowId={flowId}; StartUtc={startUtc:O}; EndUtc={endUtc:O}; Criteria={FormatCriteria(criteria)}; Limit={AdvancedSearchRunLimit}.");
-
-        while (!string.IsNullOrWhiteSpace(nextUrl) && inspected < AdvancedSearchRunLimit && !reachedOlderThanStart)
-        {
-            page++;
-            _logger?.Debug($"Advanced search page request. FlowId={flowId}; Page={page}; Url={nextUrl}.");
-            using var document = await GetJsonAsync(nextUrl, cancellationToken).ConfigureAwait(false);
-            if (!document.RootElement.TryGetProperty("value", out var runs))
-            {
-                _logger?.Debug($"Advanced search page had no value array. FlowId={flowId}; Page={page}.");
-                break;
-            }
-
-            var pageRows = 0;
-            foreach (var run in runs.EnumerateArray())
-            {
-                pageRows++;
-                inspected++;
-                if (inspected > AdvancedSearchRunLimit)
-                {
-                    _logger?.Info($"Advanced search inspection limit reached. FlowId={flowId}; Limit={AdvancedSearchRunLimit}.");
-                    break;
-                }
-
-                var flowRun = CreateFlowRunFromList(run, environmentId, baseUrl);
-
-                if (flowRun.StartedOn is null)
-                {
-                    _logger?.Debug($"Advanced search skipped run with no start time. FlowId={flowId}; RunName={flowRun.Name}; RunId={flowRun.RunId}.");
-                    continue;
-                }
-
-                var startedUtc = flowRun.StartedOn.Value.ToUniversalTime();
-                if (startedUtc > endUtc)
-                {
-                    _logger?.Trace($"Advanced search skipped run newer than end UTC. FlowId={flowId}; RunName={flowRun.Name}; StartedUtc={startedUtc:O}; EndUtc={endUtc:O}.");
-                    continue;
-                }
-
-                if (startedUtc < startUtc)
-                {
-                    reachedOlderThanStart = true;
-                    _logger?.Info($"Advanced search reached run older than start UTC; stopping scan. FlowId={flowId}; RunName={flowRun.Name}; StartedUtc={startedUtc:O}; StartUtc={startUtc:O}; Inspected={inspected}; Matches={result.Count}.");
-                    break;
-                }
-
-                await LoadTriggerOutputsFromRunContentAsync(environmentId, baseUrl, run, flowRun, cancellationToken)
-                    .ConfigureAwait(false);
-
-                if (MatchesCriteria(flowRun, criteria, out var criteriaDiagnostic))
-                {
-                    result.Add(flowRun);
-                    _logger?.Debug($"Advanced search matched run. FlowId={flowId}; RunName={flowRun.Name}; StartedUtc={startedUtc:O}; TriggerKeys={flowRun.TriggerInputs.Count}.");
-                }
-                else
-                {
-                    _logger?.Debug($"Advanced search rejected run by criteria. FlowId={flowId}; RunName={flowRun.Name}; StartedUtc={startedUtc:O}; Reason={criteriaDiagnostic}; TriggerKeys={flowRun.TriggerInputs.Count}.");
-                }
-            }
-
-            nextUrl = GetNextLink(document.RootElement);
-            _logger?.Debug($"Advanced search page processed. FlowId={flowId}; Page={page}; PageRows={pageRows}; Inspected={inspected}; Matches={result.Count}; HasNext={!string.IsNullOrWhiteSpace(nextUrl)}.");
-        }
-
-        _logger?.Info($"Power Platform advanced search complete. FlowId={flowId}; Inspected={inspected}; Matches={result.Count}; StoppedOlderThanStart={reachedOlderThanStart}.");
-        return result;
-    }
-
-    private async Task<FlowRun> CreateFlowRunAsync(
-        string environmentId,
-        string baseUrl,
-        JsonElement run,
-        CancellationToken cancellationToken)
-    {
-        var flowRun = CreateFlowRunFromList(run, environmentId, baseUrl);
-
         await LoadTriggerOutputsFromRunContentAsync(environmentId, baseUrl, run, flowRun, cancellationToken)
             .ConfigureAwait(false);
-        _logger?.Trace($"Created flow run. RunName={flowRun.Name}; Status={flowRun.Status}; Started={flowRun.StartedOn:O}; TriggerKeys={flowRun.TriggerInputs.Count}.");
-
-        return flowRun;
     }
 
-    private static FlowRun CreateFlowRunFromList(JsonElement run, string? environmentId = null, string? baseUrl = null)
+    public FlowRun CreateFlowRun(string environmentId, Guid flowId, JsonElement run)
+    {
+        return CreateFlowRunFromList(run, environmentId, BuildPowerPlatformFlowBaseUrl(environmentId, flowId));
+    }
+
+    private static FlowRun CreateFlowRunFromList(JsonElement run, string environmentId, string baseUrl)
     {
         var properties = run.TryGetProperty("properties", out var props)
             ? props
@@ -190,9 +102,7 @@ public sealed class PowerAutomateClient : IDisposable
         {
             RunId = run.GetStringOrDefault("id") ?? runName,
             Name = runName,
-            RunUrl = environmentId is not null && baseUrl is not null
-                ? BuildRunUrl(environmentId, baseUrl, runName)
-                : null,
+            RunUrl = BuildRunUrl(environmentId, baseUrl, runName),
             Status = properties.GetStringOrDefault("status") ?? run.GetStringOrDefault("status"),
             StartedOn = properties.GetDateTimeOffsetOrDefault("startTime") ??
                         properties.GetDateTimeOffsetOrDefault("starttime"),
@@ -232,30 +142,6 @@ public sealed class PowerAutomateClient : IDisposable
         return root.GetStringOrDefault("nextLink") ??
                root.GetStringOrDefault("@odata.nextLink") ??
                root.GetStringOrDefault("nextPageLink");
-    }
-
-    private static bool MatchesCriteria(
-        FlowRun run,
-        IReadOnlyDictionary<string, string> criteria,
-        out string diagnostic)
-    {
-        foreach (var criterion in criteria)
-        {
-            if (!run.TriggerInputs.TryGetValue(criterion.Key, out var actualValue))
-            {
-                diagnostic = $"MissingField:{criterion.Key}";
-                return false;
-            }
-
-            if (!string.Equals(actualValue, criterion.Value, StringComparison.OrdinalIgnoreCase))
-            {
-                diagnostic = $"ValueMismatch:{criterion.Key}; Expected={criterion.Value}; Actual={actualValue}";
-                return false;
-            }
-        }
-
-        diagnostic = "Matched";
-        return true;
     }
 
     private static string BuildPowerPlatformFlowBaseUrl(string environmentId, Guid flowId)
@@ -366,13 +252,6 @@ public sealed class PowerAutomateClient : IDisposable
         }
 
         throw new JsonException("Run trigger does not contain outputsLink, inputsLink, outputs, or inputs.");
-    }
-
-    private static string FormatCriteria(IReadOnlyDictionary<string, string> criteria)
-    {
-        return criteria.Count == 0
-            ? "<none>"
-            : string.Join("; ", criteria.Select(criterion => $"{criterion.Key}={criterion.Value}"));
     }
 
     private static string? GetTriggerContentLink(JsonElement trigger, string linkPropertyName)
@@ -508,3 +387,7 @@ public sealed class PowerAutomateClient : IDisposable
         _sasHttpClient.Dispose();
     }
 }
+
+public sealed record PowerAutomateRunPage(
+    IReadOnlyList<JsonElement> Runs,
+    string? NextLink);
