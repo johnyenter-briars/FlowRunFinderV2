@@ -150,7 +150,17 @@
         <DataGridTextColumn Header="Started" Binding="{Binding StartedOn}" Width="Auto" />
         <DataGridTextColumn Header="Ended" Binding="{Binding EndedOn}" Width="Auto" />
         <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="Auto" />
-        <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="Auto" />
+        <DataGridTemplateColumn Header="Run Id" Width="Auto">
+          <DataGridTemplateColumn.CellTemplate>
+            <DataTemplate>
+              <TextBlock Text="{Binding Name}"
+                         Foreground="{DynamicResource SystemAccentColor}"
+                         TextDecorations="Underline"
+                         Cursor="Hand"
+                         PointerPressed="OnRunLinkPointerPressed" />
+            </DataTemplate>
+          </DataGridTemplateColumn.CellTemplate>
+        </DataGridTemplateColumn>
       </DataGrid.Columns>
       </DataGrid>
     </Grid>
@@ -174,6 +184,20 @@
                    Text="Working..."
                    VerticalAlignment="Center" />
       </StackPanel>
+    </Border>
+
+    <Border x:Name="ToastOverlay"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Bottom"
+            Margin="18"
+            Padding="12,8"
+            CornerRadius="6"
+            Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+            BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+            BorderThickness="1"
+            IsVisible="False">
+      <TextBlock x:Name="ToastTextBlock"
+                 Text="Copied to clipboard" />
     </Border>
   </Grid>
 </Window>

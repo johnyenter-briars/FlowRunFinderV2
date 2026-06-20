@@ -176,6 +176,7 @@ public sealed class PowerAutomateClient : IDisposable
         {
             RunId = run.GetStringOrDefault("id") ?? run.GetStringOrDefault("name"),
             Name = run.GetStringOrDefault("name"),
+            RunUrl = BuildRunUrl(environmentId, baseUrl, run.GetStringOrDefault("name")),
             Status = properties.GetStringOrDefault("status") ?? run.GetStringOrDefault("status"),
             StartedOn = properties.GetDateTimeOffsetOrDefault("startTime") ??
                         properties.GetDateTimeOffsetOrDefault("starttime"),
@@ -188,6 +189,19 @@ public sealed class PowerAutomateClient : IDisposable
         _logger?.Trace($"Created flow run. RunName={flowRun.Name}; Status={flowRun.Status}; Started={flowRun.StartedOn:O}; TriggerKeys={flowRun.TriggerInputs.Count}.");
 
         return flowRun;
+    }
+
+    private static string? BuildRunUrl(string environmentId, string flowBaseUrl, string? runName)
+    {
+        if (string.IsNullOrWhiteSpace(runName))
+        {
+            return null;
+        }
+
+        var flowId = flowBaseUrl.Split('/').LastOrDefault();
+        return string.IsNullOrWhiteSpace(flowId)
+            ? null
+            : $"https://make.powerautomate.com/environments/{environmentId}/flows/{flowId}/runs/{runName}";
     }
 
     private async Task<JsonDocument> GetJsonAsync(string url, CancellationToken cancellationToken)

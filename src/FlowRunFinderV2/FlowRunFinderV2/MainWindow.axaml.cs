@@ -1,9 +1,11 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Data;
 using Avalonia.Data.Converters;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
@@ -33,6 +35,7 @@ public sealed partial class MainWindow : Window
     private string? _deviceVerificationUrl;
     private string? _deviceUserCode;
     private int _busyDepth;
+    private CancellationTokenSource? _toastCancellationTokenSource;
 
     public MainWindow()
     {
@@ -150,6 +153,7 @@ public sealed partial class MainWindow : Window
         if (!string.IsNullOrWhiteSpace(_deviceVerificationUrl) && Clipboard is { } clipboard)
         {
             await clipboard.SetTextAsync(_deviceVerificationUrl);
+            ShowToast("Copied to clipboard");
             SetStatus("Device login URL copied.");
         }
     }
@@ -159,7 +163,40 @@ public sealed partial class MainWindow : Window
         if (!string.IsNullOrWhiteSpace(_deviceUserCode) && Clipboard is { } clipboard)
         {
             await clipboard.SetTextAsync(_deviceUserCode);
+            ShowToast("Copied to clipboard");
             SetStatus("Device code copied.");
+        }
+    }
+
+    private async void OnRunLinkPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (sender is not TextBlock { DataContext: FlowRun { RunUrl: { } runUrl } })
+        {
+            return;
+        }
+
+        var point = e.GetCurrentPoint(this);
+        if (point.Properties.IsRightButtonPressed)
+        {
+            if (Clipboard is { } clipboard)
+            {
+                await clipboard.SetTextAsync(runUrl);
+                ShowToast("Copied to clipboard");
+                SetStatus("Run URL copied.");
+            }
+
+            e.Handled = true;
+            return;
+        }
+
+        if (point.Properties.IsLeftButtonPressed)
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = runUrl,
+                UseShellExecute = true
+            });
+            e.Handled = true;
         }
     }
 
@@ -642,6 +679,31 @@ public sealed partial class MainWindow : Window
     {
         _busyDepth = Math.Max(0, _busyDepth - 1);
         BusyOverlay.IsVisible = _busyDepth > 0;
+    }
+
+    private void ShowToast(string message)
+    {
+        _toastCancellationTokenSource?.Cancel();
+        _toastCancellationTokenSource = new CancellationTokenSource();
+        var token = _toastCancellationTokenSource.Token;
+
+        ToastTextBlock.Text = message;
+        ToastOverlay.IsVisible = true;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(2), token);
+                if (!token.IsCancellationRequested)
+                {
+                    await Dispatcher.UIThread.InvokeAsync(() => ToastOverlay.IsVisible = false);
+                }
+            }
+            catch (TaskCanceledException)
+            {
+            }
+        }, token);
     }
 }
 
