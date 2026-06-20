@@ -1,5 +1,4 @@
 using System.Net.Http.Headers;
-using System.Text.RegularExpressions;
 using System.Text.Json;
 using FlowRunFinderV2.Models;
 
@@ -8,16 +7,6 @@ namespace FlowRunFinderV2.Services;
 public sealed class PowerAutomateClient : IDisposable
 {
     private const string ApiVersion = "2016-11-01";
-    private static readonly Regex WorkflowRunPathRegex = new(
-        @"/workflows/(?<workflowId>[^/]+)/runs/(?<runId>[^/?#]+)",
-        RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly Regex WorkflowPathRegex = new(
-        @"/workflows/(?<workflowId>[^/]+)",
-        RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly Regex TriggerOutputsContentPathRegex = new(
-        @"(?<path>/powerautomate/automations/direct/workflows/[^?#\s""]+/runs/[^?#\s""]+/contents/TriggerOutputs(?:\?[^'""\s]+)?)",
-        RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
     private readonly HttpClient _httpClient = new();
     private readonly HttpClient _sasHttpClient = new();
 
@@ -92,8 +81,7 @@ public sealed class PowerAutomateClient : IDisposable
                 StartedOn = properties.GetDateTimeOffsetOrDefault("startTime") ??
                             properties.GetDateTimeOffsetOrDefault("starttime"),
                 EndedOn = properties.GetDateTimeOffsetOrDefault("endTime") ??
-                          properties.GetDateTimeOffsetOrDefault("endtime"),
-                Duration = properties.GetStringOrDefault("duration")
+                          properties.GetDateTimeOffsetOrDefault("endtime")
             };
 
             await LoadTriggerOutputsFromRunContentAsync(environmentId, baseUrl, run, flowRun, cancellationToken)
@@ -135,7 +123,9 @@ public sealed class PowerAutomateClient : IDisposable
         FlowRun flowRun,
         CancellationToken cancellationToken)
     {
+        var sourceRun = runFromList;
         JsonDocument? detailDocument = null;
+
         try
         {
             if (!string.IsNullOrWhiteSpace(flowRun.Name))
@@ -143,50 +133,36 @@ public sealed class PowerAutomateClient : IDisposable
                 var runName = Uri.EscapeDataString(flowRun.Name);
                 var detailUrl = $"{flowBaseUrl}/runs/{runName}?api-version=1";
                 detailDocument = await GetJsonAsync(detailUrl, cancellationToken).ConfigureAwait(false);
+                sourceRun = detailDocument.RootElement;
             }
         }
         catch (HttpRequestException)
         {
             detailDocument?.Dispose();
             detailDocument = null;
-        }
-
-        var contentUrl = TryFindTriggerOutputsContentUrl(detailDocument?.RootElement, environmentId) ??
-                         TryFindTriggerOutputsContentUrl(runFromList, environmentId);
-
-        var workflowId = TryFindWorkflowId(runFromList);
-        var runId = TryFindRunId(runFromList) ?? flowRun.Name;
-
-        if (detailDocument is not null)
-        {
-            workflowId ??= TryFindWorkflowId(detailDocument.RootElement);
-            runId ??= TryFindRunId(detailDocument.RootElement) ?? flowRun.Name;
-        }
-
-        if (string.IsNullOrWhiteSpace(contentUrl) &&
-            !string.IsNullOrWhiteSpace(workflowId) &&
-            !string.IsNullOrWhiteSpace(runId))
-        {
-            contentUrl = BuildTriggerOutputsContentUrl(environmentId, workflowId, runId);
-        }
-
-        if (string.IsNullOrWhiteSpace(contentUrl))
-        {
-            detailDocument?.Dispose();
-            return;
+            sourceRun = runFromList;
         }
 
         try
         {
-            using var contentDocument = await GetContentJsonAsync(contentUrl, cancellationToken).ConfigureAwait(false);
-            foreach (var triggerInput in ExpandTriggerOutputsContent(contentDocument.RootElement))
+            var triggerContent = await GetTriggerContentAsync(sourceRun, cancellationToken).ConfigureAwait(false);
+            foreach (var triggerInput in ExpandTriggerOutputsContent(triggerContent))
             {
                 flowRun.TriggerInputs[triggerInput.Key] = triggerInput.Value;
+            }
+
+            if (flowRun.TriggerInputs.Count > 0)
+            {
+                return;
             }
         }
         catch (HttpRequestException)
         {
-            // Do not fall back to trigger inputs here; those are wrapper fields such as subscriptionRequest.
+            // Keep the run visible even if trigger content has expired or is unavailable.
+        }
+        catch (JsonException)
+        {
+            // Keep the run visible even if this trigger content shape is unexpected.
         }
         finally
         {
@@ -194,83 +170,55 @@ public sealed class PowerAutomateClient : IDisposable
         }
     }
 
-    private static string BuildTriggerOutputsContentUrl(string environmentId, string workflowId, string runId)
-    {
-        return $"https://{BuildPowerPlatformUserContentHost(environmentId)}" +
-               $"/powerautomate/automations/direct/workflows/{Uri.EscapeDataString(workflowId)}" +
-               $"/runs/{Uri.EscapeDataString(runId)}/contents/TriggerOutputs?api-version=1";
-    }
-
-    private async Task LoadTriggerInputsFromRun(JsonElement run, FlowRun flowRun, CancellationToken cancellationToken)
+    private async Task<JsonElement> GetTriggerContentAsync(JsonElement run, CancellationToken cancellationToken)
     {
         if (!run.TryGetProperty("properties", out var properties) ||
             !properties.TryGetProperty("trigger", out var trigger))
         {
-            return;
+            throw new JsonException("Run payload does not contain properties.trigger.");
         }
 
-        string? triggerJson = null;
+        var link = GetTriggerContentLink(trigger, "outputsLink") ??
+                   GetTriggerContentLink(trigger, "inputsLink");
 
-        if (trigger.TryGetProperty("inputs", out var inputs) &&
-            inputs.ValueKind == JsonValueKind.Object &&
-            inputs.EnumerateObject().Any())
+        if (!string.IsNullOrWhiteSpace(link))
         {
-            triggerJson = inputs.GetRawText();
-        }
-        else if (trigger.TryGetProperty("outputs", out var outputs) &&
-                 outputs.ValueKind == JsonValueKind.Object &&
-                 outputs.EnumerateObject().Any())
-        {
-            triggerJson = outputs.GetRawText();
-        }
-        else if (trigger.TryGetProperty("inputsLink", out var inputsLink) &&
-                 inputsLink.TryGetProperty("uri", out var inputsUri))
-        {
-            var sasUri = inputsUri.GetString();
-            if (!string.IsNullOrWhiteSpace(sasUri))
+            var client = HasSignedPowerPlatformContentQuery(link) ? _sasHttpClient : _httpClient;
+            using var response = await client.GetAsync(link, cancellationToken).ConfigureAwait(false);
+            var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+
+            if (!response.IsSuccessStatusCode)
             {
-                triggerJson = await GetStringFromSasUriAsync(sasUri, cancellationToken).ConfigureAwait(false);
+                throw new HttpRequestException($"Power Automate content request failed: {(int)response.StatusCode} {response.ReasonPhrase}. {body}");
             }
-        }
-        else if (trigger.TryGetProperty("outputsLink", out var outputsLink) &&
-                 outputsLink.TryGetProperty("uri", out var outputsUri))
-        {
-            var sasUri = outputsUri.GetString();
-            if (!string.IsNullOrWhiteSpace(sasUri))
-            {
-                triggerJson = await GetStringFromSasUriAsync(sasUri, cancellationToken).ConfigureAwait(false);
-            }
+
+            using var contentDocument = JsonDocument.Parse(body);
+            return contentDocument.RootElement.Clone();
         }
 
-        foreach (var triggerInput in ExpandTriggerJson(triggerJson))
+        if (trigger.TryGetProperty("outputs", out var outputs) && outputs.ValueKind == JsonValueKind.Object)
         {
-            flowRun.TriggerInputs[triggerInput.Key] = triggerInput.Value;
+            return outputs.Clone();
         }
+
+        if (trigger.TryGetProperty("inputs", out var inputs) && inputs.ValueKind == JsonValueKind.Object)
+        {
+            return inputs.Clone();
+        }
+
+        throw new JsonException("Run trigger does not contain outputsLink, inputsLink, outputs, or inputs.");
     }
 
-    private async Task<string?> GetStringFromSasUriAsync(string sasUri, CancellationToken cancellationToken)
+    private static string? GetTriggerContentLink(JsonElement trigger, string linkPropertyName)
     {
-        using var response = await _sasHttpClient.GetAsync(sasUri, cancellationToken).ConfigureAwait(false);
-        if (!response.IsSuccessStatusCode)
+        if (trigger.TryGetProperty(linkPropertyName, out var link) &&
+            link.ValueKind == JsonValueKind.Object &&
+            link.TryGetProperty("uri", out var uri))
         {
-            return null;
+            return uri.GetString();
         }
 
-        return await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-    }
-
-    private async Task<JsonDocument> GetContentJsonAsync(string url, CancellationToken cancellationToken)
-    {
-        var client = HasSignedPowerPlatformContentQuery(url) ? _sasHttpClient : _httpClient;
-        using var response = await client.GetAsync(url, cancellationToken).ConfigureAwait(false);
-        var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            throw new HttpRequestException($"Power Automate content request failed: {(int)response.StatusCode} {response.ReasonPhrase}. {body}");
-        }
-
-        return JsonDocument.Parse(body);
+        return null;
     }
 
     private static bool HasSignedPowerPlatformContentQuery(string url)
@@ -278,56 +226,6 @@ public sealed class PowerAutomateClient : IDisposable
         return url.Contains("sig=", StringComparison.OrdinalIgnoreCase) &&
                url.Contains("sv=", StringComparison.OrdinalIgnoreCase) &&
                url.Contains("sp=", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static Dictionary<string, string> ExpandTriggerJson(string? json)
-    {
-        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        if (string.IsNullOrWhiteSpace(json))
-        {
-            return result;
-        }
-
-        try
-        {
-            using var document = JsonDocument.Parse(json);
-            var source = document.RootElement;
-
-            if (source.ValueKind == JsonValueKind.Object &&
-                source.TryGetProperty("parameters", out var parameters) &&
-                parameters.ValueKind == JsonValueKind.Object)
-            {
-                FlattenTo(parameters, result);
-                return result;
-            }
-
-            if (source.ValueKind == JsonValueKind.Object &&
-                source.TryGetProperty("body", out var body) &&
-                body.ValueKind == JsonValueKind.Object)
-            {
-                source = body;
-
-                if (body.TryGetProperty("BusinessEntity", out var businessEntity) &&
-                    businessEntity.ValueKind == JsonValueKind.Object)
-                {
-                    source = businessEntity;
-
-                    if (body.TryGetProperty("FormattedValues", out var formattedValues) &&
-                        formattedValues.ValueKind == JsonValueKind.Object)
-                    {
-                        FlattenTo(formattedValues, result);
-                    }
-                }
-            }
-
-            FlattenTo(source, result);
-        }
-        catch (JsonException)
-        {
-            return result;
-        }
-
-        return result;
     }
 
     private static Dictionary<string, string> ExpandTriggerOutputsContent(JsonElement root)
@@ -339,8 +237,11 @@ public sealed class PowerAutomateClient : IDisposable
         {
             var outputBody = SelectTriggerOutputBody(body);
             FlattenTo(outputBody, result);
+            return result;
         }
 
+        var fallbackBody = SelectTriggerOutputBody(root);
+        FlattenTo(fallbackBody, result);
         return result;
     }
 
@@ -433,183 +334,6 @@ public sealed class PowerAutomateClient : IDisposable
                propertyName.Equals("headers", StringComparison.OrdinalIgnoreCase) ||
                propertyName.Equals("parameters", StringComparison.OrdinalIgnoreCase) ||
                propertyName.Equals("subscriptionRequest", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static string? TryFindWorkflowId(JsonElement element)
-    {
-        var match = TryFindWorkflowRunPathMatch(element);
-        if (match is not null)
-        {
-            return match.Groups["workflowId"].Value;
-        }
-
-        var workflowOnlyMatch = TryFindWorkflowPathMatch(element);
-        return workflowOnlyMatch?.Groups["workflowId"].Value;
-    }
-
-    private static string? TryFindRunId(JsonElement element)
-    {
-        var match = TryFindWorkflowRunPathMatch(element);
-        if (match is not null)
-        {
-            return Uri.UnescapeDataString(match.Groups["runId"].Value);
-        }
-
-        return element.GetStringOrDefault("name");
-    }
-
-    private static Match? TryFindWorkflowRunPathMatch(JsonElement element)
-    {
-        if (element.ValueKind == JsonValueKind.String)
-        {
-            var value = element.GetString();
-            if (!string.IsNullOrWhiteSpace(value))
-            {
-                var match = WorkflowRunPathRegex.Match(value);
-                if (match.Success)
-                {
-                    return match;
-                }
-            }
-        }
-
-        if (element.ValueKind == JsonValueKind.Object)
-        {
-            foreach (var property in element.EnumerateObject())
-            {
-                var match = TryFindWorkflowRunPathMatch(property.Value);
-                if (match is not null)
-                {
-                    return match;
-                }
-            }
-        }
-
-        if (element.ValueKind == JsonValueKind.Array)
-        {
-            foreach (var item in element.EnumerateArray())
-            {
-                var match = TryFindWorkflowRunPathMatch(item);
-                if (match is not null)
-                {
-                    return match;
-                }
-            }
-        }
-
-        return null;
-    }
-
-    private static Match? TryFindWorkflowPathMatch(JsonElement element)
-    {
-        if (element.ValueKind == JsonValueKind.String)
-        {
-            var value = element.GetString();
-            if (!string.IsNullOrWhiteSpace(value))
-            {
-                var match = WorkflowPathRegex.Match(value);
-                if (match.Success)
-                {
-                    return match;
-                }
-            }
-        }
-
-        if (element.ValueKind == JsonValueKind.Object)
-        {
-            foreach (var property in element.EnumerateObject())
-            {
-                var match = TryFindWorkflowPathMatch(property.Value);
-                if (match is not null)
-                {
-                    return match;
-                }
-            }
-        }
-
-        if (element.ValueKind == JsonValueKind.Array)
-        {
-            foreach (var item in element.EnumerateArray())
-            {
-                var match = TryFindWorkflowPathMatch(item);
-                if (match is not null)
-                {
-                    return match;
-                }
-            }
-        }
-
-        return null;
-    }
-
-    private static string? TryFindTriggerOutputsContentUrl(JsonElement? element, string environmentId)
-    {
-        if (element is null)
-        {
-            return null;
-        }
-
-        return TryFindTriggerOutputsContentUrl(element.Value, BuildPowerPlatformUserContentHost(environmentId));
-    }
-
-    private static string? TryFindTriggerOutputsContentUrl(JsonElement element, string userContentHost)
-    {
-        if (element.ValueKind == JsonValueKind.String)
-        {
-            var value = element.GetString();
-            if (string.IsNullOrWhiteSpace(value))
-            {
-                return null;
-            }
-
-            if (value.Contains("/contents/TriggerOutputs", StringComparison.OrdinalIgnoreCase) &&
-                Uri.TryCreate(value, UriKind.Absolute, out var absoluteUri))
-            {
-                return absoluteUri.ToString();
-            }
-
-            var pathMatch = TriggerOutputsContentPathRegex.Match(value);
-            if (pathMatch.Success)
-            {
-                return $"https://{userContentHost}{pathMatch.Groups["path"].Value}";
-            }
-        }
-
-        if (element.ValueKind == JsonValueKind.Object)
-        {
-            foreach (var property in element.EnumerateObject())
-            {
-                var url = TryFindTriggerOutputsContentUrl(property.Value, userContentHost);
-                if (!string.IsNullOrWhiteSpace(url))
-                {
-                    return url;
-                }
-            }
-        }
-
-        if (element.ValueKind == JsonValueKind.Array)
-        {
-            foreach (var item in element.EnumerateArray())
-            {
-                var url = TryFindTriggerOutputsContentUrl(item, userContentHost);
-                if (!string.IsNullOrWhiteSpace(url))
-                {
-                    return url;
-                }
-            }
-        }
-
-        return null;
-    }
-
-    private static string BuildPowerPlatformUserContentHost(string environmentId)
-    {
-        var hostEnvironmentId = environmentId.Replace("-", string.Empty, StringComparison.OrdinalIgnoreCase);
-        var host = hostEnvironmentId.Length == 32
-            ? $"{hostEnvironmentId[..30]}.{hostEnvironmentId[30..]}"
-            : hostEnvironmentId;
-
-        return $"{host}.environment.api.powerplatformusercontent.com";
     }
 
     public void Dispose()

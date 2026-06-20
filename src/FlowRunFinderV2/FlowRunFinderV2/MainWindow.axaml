@@ -133,11 +133,10 @@
               HeadersVisibility="Column"
               CanUserResizeColumns="True">
       <DataGrid.Columns>
-        <DataGridTextColumn Header="Started" Binding="{Binding StartedOn}" Width="170" />
-        <DataGridTextColumn Header="Ended" Binding="{Binding EndedOn}" Width="170" />
-        <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="110" />
-        <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*" />
-        <DataGridTextColumn Header="Duration" Binding="{Binding Duration}" Width="140" />
+        <DataGridTextColumn Header="Started" Binding="{Binding StartedOn}" Width="Auto" />
+        <DataGridTextColumn Header="Ended" Binding="{Binding EndedOn}" Width="Auto" />
+        <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="Auto" />
+        <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="Auto" />
       </DataGrid.Columns>
       </DataGrid>
     </Grid>

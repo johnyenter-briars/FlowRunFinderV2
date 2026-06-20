@@ -12,7 +12,7 @@ namespace FlowRunFinderV2;
 
 public sealed partial class MainWindow : Window
 {
-    private const int FixedRunColumnCount = 5;
+    private const int FixedRunColumnCount = 4;
 
     private readonly AppDataStore _appDataStore = new();
     private readonly DataverseAuthService _authService = new();
@@ -280,7 +280,7 @@ public sealed partial class MainWindow : Window
                     Converter = TriggerInputValueConverter.Instance,
                     ConverterParameter = key
                 },
-                Width = new DataGridLength(180)
+                Width = DataGridLength.Auto
             });
         }
     }
