@@ -13,7 +13,6 @@ public sealed class AppDataStore
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "FlowRunFinderV2");
 
-    private string SettingsPath => Path.Combine(AppDataFolder, "settings.json");
     public string ConnectionsFolder => Path.Combine(AppDataFolder, "connections");
     public string LogsFolder => Path.Combine(AppDataFolder, "logs");
 
@@ -22,26 +21,6 @@ public sealed class AppDataStore
         Directory.CreateDirectory(AppDataFolder);
         Directory.CreateDirectory(ConnectionsFolder);
         Directory.CreateDirectory(LogsFolder);
-    }
-
-    public async Task<AppSettings> LoadSettingsAsync(CancellationToken cancellationToken = default)
-    {
-        if (!File.Exists(SettingsPath))
-        {
-            return new AppSettings();
-        }
-
-        await using var stream = File.OpenRead(SettingsPath);
-        return await JsonSerializer.DeserializeAsync<AppSettings>(stream, JsonOptions, cancellationToken)
-                   .ConfigureAwait(false)
-               ?? new AppSettings();
-    }
-
-    public async Task SaveSettingsAsync(AppSettings settings, CancellationToken cancellationToken = default)
-    {
-        Directory.CreateDirectory(AppDataFolder);
-        await using var stream = File.Create(SettingsPath);
-        await JsonSerializer.SerializeAsync(stream, settings, JsonOptions, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<IReadOnlyList<ConnectionProfile>> LoadConnectionsAsync(CancellationToken cancellationToken = default)

@@ -1,3 +1,4 @@
+using FlowRunFinderV2;
 using FlowRunFinderV2.Models;
 
 namespace FlowRunFinderV2.Services;
@@ -43,7 +44,7 @@ public sealed class FlowRunQueryEngine
         Guid flowId,
         DateTimeOffset startUtc,
         DateTimeOffset endUtc,
-        IReadOnlyDictionary<string, string> criteria,
+        AdvancedSearchGroup filter,
         CancellationToken cancellationToken)
     {
         var page = 0;
@@ -52,7 +53,7 @@ public sealed class FlowRunQueryEngine
         var nextPage = await _client.GetRunsPageAsync(environmentId, flowId, cancellationToken).ConfigureAwait(false);
         var result = new List<FlowRun>();
 
-        _logger?.Info($"Advanced search query started. FlowId={flowId}; StartUtc={startUtc:O}; EndUtc={endUtc:O}; Criteria={FormatCriteria(criteria)}; Limit={AdvancedSearchRunLimit}.");
+        _logger?.Info($"Advanced search query started. FlowId={flowId}; StartUtc={startUtc:O}; EndUtc={endUtc:O}; Filter={FormatFilter(filter)}; Limit={AdvancedSearchRunLimit}.");
 
         while (inspected < AdvancedSearchRunLimit && !reachedOlderThanStart)
         {
@@ -93,7 +94,7 @@ public sealed class FlowRunQueryEngine
                 await _client.LoadTriggerOutputsAsync(environmentId, flowId, run, flowRun, cancellationToken)
                     .ConfigureAwait(false);
 
-                if (MatchesCriteria(flowRun, criteria, out var criteriaDiagnostic))
+                if (MatchesFilter(flowRun, filter, out var criteriaDiagnostic))
                 {
                     result.Add(flowRun);
                     _logger?.Debug($"Advanced search matched run. FlowId={flowId}; RunName={flowRun.Name}; StartedUtc={startedUtc:O}; TriggerKeys={flowRun.TriggerInputs.Count}.");
@@ -118,34 +119,100 @@ public sealed class FlowRunQueryEngine
         return result;
     }
 
-    private static bool MatchesCriteria(
+    private static bool MatchesFilter(
         FlowRun run,
-        IReadOnlyDictionary<string, string> criteria,
+        AdvancedSearchGroup filter,
         out string diagnostic)
     {
-        foreach (var criterion in criteria)
+        if (filter.Children.Count == 0)
         {
-            if (!run.TriggerInputs.TryGetValue(criterion.Key, out var actualValue))
+            diagnostic = "NoFilter";
+            return true;
+        }
+
+        var childDiagnostics = new List<string>();
+        foreach (var child in filter.Children)
+        {
+            bool matched;
+            string childDiagnostic;
+
+            switch (child)
             {
-                diagnostic = $"MissingField:{criterion.Key}";
+                case AdvancedSearchCondition condition:
+                    matched = MatchesCondition(run, condition, out childDiagnostic);
+                    break;
+                case AdvancedSearchGroup group:
+                    matched = MatchesFilter(run, group, out childDiagnostic);
+                    break;
+                default:
+                    throw new InvalidOperationException($"Unsupported advanced search node: {child.GetType().Name}.");
+            }
+
+            childDiagnostics.Add(childDiagnostic);
+
+            if (filter.LogicalOperator == AdvancedSearchLogicalOperator.And && !matched)
+            {
+                diagnostic = $"AndFailed({childDiagnostic})";
                 return false;
             }
 
-            if (!string.Equals(actualValue, criterion.Value, StringComparison.OrdinalIgnoreCase))
+            if (filter.LogicalOperator == AdvancedSearchLogicalOperator.Or && matched)
             {
-                diagnostic = $"ValueMismatch:{criterion.Key}; Expected={criterion.Value}; Actual={actualValue}";
-                return false;
+                diagnostic = "OrMatched";
+                return true;
             }
         }
 
-        diagnostic = "Matched";
-        return true;
+        if (filter.LogicalOperator == AdvancedSearchLogicalOperator.And)
+        {
+            diagnostic = "AndMatched";
+            return true;
+        }
+
+        diagnostic = $"OrFailed({string.Join(" | ", childDiagnostics)})";
+        return false;
     }
 
-    private static string FormatCriteria(IReadOnlyDictionary<string, string> criteria)
+    private static bool MatchesCondition(
+        FlowRun run,
+        AdvancedSearchCondition condition,
+        out string diagnostic)
     {
-        return criteria.Count == 0
-            ? "<none>"
-            : string.Join("; ", criteria.Select(criterion => $"{criterion.Key}={criterion.Value}"));
+        if (!run.TriggerInputs.TryGetValue(condition.FieldName, out var actualValue))
+        {
+            diagnostic = $"MissingField:{condition.FieldName}";
+            return false;
+        }
+
+        var matched = condition.Operator switch
+        {
+            AdvancedSearchComparisonOperator.Equals =>
+                string.Equals(actualValue, condition.Value, StringComparison.OrdinalIgnoreCase),
+            AdvancedSearchComparisonOperator.Contains =>
+                actualValue.Contains(condition.Value, StringComparison.OrdinalIgnoreCase),
+            _ => false
+        };
+
+        diagnostic = matched
+            ? $"Matched:{condition.FieldName}"
+            : $"ValueMismatch:{condition.FieldName}; Operator={condition.Operator}; Expected={condition.Value}; Actual={actualValue}";
+        return matched;
+    }
+
+    private static string FormatFilter(AdvancedSearchGroup filter)
+    {
+        if (filter.Children.Count == 0)
+        {
+            return "<none>";
+        }
+
+        var parts = filter.Children.Select(child => child switch
+        {
+            AdvancedSearchCondition condition => $"{condition.FieldName} {condition.Operator} {condition.Value}",
+            AdvancedSearchGroup group => $"({FormatFilter(group)})",
+            _ => child.GetType().Name
+        });
+
+        return string.Join($" {filter.LogicalOperator.ToString().ToUpperInvariant()} ", parts);
     }
 }

@@ -2,10 +2,10 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="FlowRunFinderV2.AdvancedSearchDialog"
         Title="Advanced Search"
-        Width="720"
-        Height="620"
-        MinWidth="620"
-        MinHeight="520"
+        Width="1040"
+        Height="760"
+        MinWidth="840"
+        MinHeight="640"
         WindowStartupLocation="CenterOwner">
   <Grid RowDefinitions="Auto,*,Auto" Margin="16" RowSpacing="14">
     <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="Auto,*,Auto,*" RowSpacing="8" ColumnSpacing="10">
@@ -25,58 +25,20 @@
                  Foreground="{DynamicResource SystemControlErrorTextForegroundBrush}" />
     </Grid>
 
-    <Grid Grid.Row="1" ColumnDefinitions="280,*" ColumnSpacing="14">
-      <Border BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
-              BorderThickness="1"
-              Padding="10">
-        <Grid RowDefinitions="Auto,*" RowSpacing="8">
-          <TextBlock Text="Trigger attributes"
-                     FontWeight="SemiBold" />
-          <ScrollViewer Grid.Row="1"
-                        VerticalScrollBarVisibility="Auto"
-                        HorizontalScrollBarVisibility="Disabled">
-            <ItemsControl x:Name="FieldsItemsControl">
-              <ItemsControl.ItemTemplate>
-                <DataTemplate>
-                  <CheckBox Content="{Binding Name}"
-                            IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                            Checked="OnFieldSelectionChanged"
-                            Unchecked="OnFieldSelectionChanged" />
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
-          </ScrollViewer>
-        </Grid>
-      </Border>
-
-      <Border Grid.Column="1"
-              BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
-              BorderThickness="1"
-              Padding="10">
-        <Grid RowDefinitions="Auto,*" RowSpacing="8">
-          <TextBlock Text="Selected criteria"
-                     FontWeight="SemiBold" />
-          <ScrollViewer Grid.Row="1"
-                        VerticalScrollBarVisibility="Auto"
-                        HorizontalScrollBarVisibility="Disabled">
-            <ItemsControl x:Name="CriteriaItemsControl">
-              <ItemsControl.ItemTemplate>
-                <DataTemplate>
-                  <Grid ColumnDefinitions="180,*" ColumnSpacing="10" Margin="0,0,0,8">
-                    <TextBlock Text="{Binding Name}"
-                               VerticalAlignment="Center"
-                               TextTrimming="CharacterEllipsis" />
-                    <TextBox Grid.Column="1"
-                             Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                             Watermark="Exact value" />
-                  </Grid>
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
-          </ScrollViewer>
-        </Grid>
-      </Border>
-    </Grid>
+    <Border Grid.Row="1"
+            BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+            BorderThickness="1"
+            Padding="12">
+      <Grid RowDefinitions="Auto,*" RowSpacing="10">
+        <TextBlock Text="Filters"
+                   FontWeight="SemiBold" />
+        <ScrollViewer Grid.Row="1"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Auto">
+          <StackPanel x:Name="FilterBuilderPanel" />
+        </ScrollViewer>
+      </Grid>
+    </Border>
 
     <StackPanel Grid.Row="2"
                 Orientation="Horizontal"

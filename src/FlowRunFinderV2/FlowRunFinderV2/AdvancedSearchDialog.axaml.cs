@@ -1,17 +1,25 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Layout;
 using Avalonia.Markup.Xaml;
+using Avalonia.Media;
 
 namespace FlowRunFinderV2;
 
 public sealed partial class AdvancedSearchDialog : Window
 {
-    private readonly ObservableCollection<AdvancedSearchField> _fields;
-    private readonly ObservableCollection<AdvancedSearchField> _selectedFields = new();
-    private ItemsControl _fieldsItemsControl = null!;
-    private ItemsControl _criteriaItemsControl = null!;
+    private static readonly IReadOnlyList<AdvancedSearchOperatorOption> OperatorOptions =
+    [
+        new("Equals", AdvancedSearchComparisonOperator.Equals),
+        new("Contains", AdvancedSearchComparisonOperator.Contains)
+    ];
+
+    private readonly IReadOnlyList<string> _fieldNames;
+    private readonly AdvancedSearchGroup _rootGroup;
+    private StackPanel _filterBuilderPanel = null!;
     private TextBox _startUtcTextBox = null!;
     private TextBox _endUtcTextBox = null!;
     private TextBlock _validationTextBlock = null!;
@@ -21,56 +29,38 @@ public sealed partial class AdvancedSearchDialog : Window
         AdvancedSearchState? initialState = null)
     {
         InitializeComponent();
+        this.ApplyAppIcon();
 
-        _fields = new ObservableCollection<AdvancedSearchField>(
-            triggerFieldNames
-                .OrderBy(name => name, AttributeNameComparer.Instance)
-                .Select(name => new AdvancedSearchField(name)));
+        _fieldNames = triggerFieldNames
+            .OrderBy(name => name, AttributeNameComparer.Instance)
+            .ToList();
+
+        _rootGroup = initialState?.Filter.Clone() as AdvancedSearchGroup ?? new AdvancedSearchGroup();
+        if (_rootGroup.Children.Count == 0)
+        {
+            _rootGroup.Children.Add(new AdvancedSearchCondition());
+        }
 
         if (initialState is not null)
         {
             _startUtcTextBox.Text = initialState.StartUtc?.ToString("O", CultureInfo.InvariantCulture);
             _endUtcTextBox.Text = initialState.EndUtc?.ToString("O", CultureInfo.InvariantCulture);
-
-            foreach (var field in _fields)
-            {
-                if (initialState.Criteria.TryGetValue(field.Name, out var value))
-                {
-                    field.IsSelected = true;
-                    field.Value = value;
-                }
-            }
-
-            RebuildSelectedFields();
         }
 
-        _fieldsItemsControl.ItemsSource = _fields;
-        _criteriaItemsControl.ItemsSource = _selectedFields;
+        RenderFilterBuilder();
     }
 
     private void InitializeComponent()
     {
         AvaloniaXamlLoader.Load(this);
-        _fieldsItemsControl = this.FindControl<ItemsControl>("FieldsItemsControl")
-            ?? throw new InvalidOperationException("FieldsItemsControl was not found.");
-        _criteriaItemsControl = this.FindControl<ItemsControl>("CriteriaItemsControl")
-            ?? throw new InvalidOperationException("CriteriaItemsControl was not found.");
+        _filterBuilderPanel = this.FindControl<StackPanel>("FilterBuilderPanel")
+            ?? throw new InvalidOperationException("FilterBuilderPanel was not found.");
         _startUtcTextBox = this.FindControl<TextBox>("StartUtcTextBox")
             ?? throw new InvalidOperationException("StartUtcTextBox was not found.");
         _endUtcTextBox = this.FindControl<TextBox>("EndUtcTextBox")
             ?? throw new InvalidOperationException("EndUtcTextBox was not found.");
         _validationTextBlock = this.FindControl<TextBlock>("ValidationTextBlock")
             ?? throw new InvalidOperationException("ValidationTextBlock was not found.");
-    }
-
-    private void OnFieldSelectionChanged(object? sender, RoutedEventArgs e)
-    {
-        if (sender is CheckBox { DataContext: AdvancedSearchField field } checkBox)
-        {
-            field.IsSelected = checkBox.IsChecked == true;
-        }
-
-        RebuildSelectedFields();
     }
 
     private void OnCancelClicked(object? sender, RoutedEventArgs e)
@@ -100,33 +90,244 @@ public sealed partial class AdvancedSearchDialog : Window
             return;
         }
 
-        var criteria = _selectedFields
-            .Where(field => !string.IsNullOrWhiteSpace(field.Value))
-            .ToDictionary(
-                field => field.Name,
-                field => field.Value.Trim(),
-                StringComparer.OrdinalIgnoreCase);
+        var filter = _rootGroup.Clone() as AdvancedSearchGroup ?? new AdvancedSearchGroup();
+        NormalizeGroup(filter);
+        if (!TryValidateGroup(filter, out var validationMessage))
+        {
+            _validationTextBlock.Text = validationMessage;
+            return;
+        }
 
-        Close(new AdvancedSearchRequest(startUtc, endUtc, criteria));
+        Close(new AdvancedSearchRequest(startUtc, endUtc, filter));
     }
 
-    private void RebuildSelectedFields()
+    private void RenderFilterBuilder()
     {
-        var existingValues = _selectedFields.ToDictionary(
-            field => field.Name,
-            field => field.Value,
-            StringComparer.OrdinalIgnoreCase);
+        _filterBuilderPanel.Children.Clear();
+        _filterBuilderPanel.Children.Add(CreateGroupControl(_rootGroup, null, 0));
+    }
 
-        _selectedFields.Clear();
-        foreach (var field in _fields.Where(field => field.IsSelected))
+    private Control CreateGroupControl(AdvancedSearchGroup group, AdvancedSearchGroup? parent, int depth)
+    {
+        var border = new Border
         {
-            if (existingValues.TryGetValue(field.Name, out var value))
+            Padding = new Thickness(10),
+            Margin = new Thickness(depth == 0 ? 0 : 18, depth == 0 ? 0 : 8, 0, 8),
+            BorderBrush = Brushes.Gray,
+            BorderThickness = new Thickness(1)
+        };
+
+        var panel = new StackPanel { Spacing = 8 };
+        border.Child = panel;
+
+        var header = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+
+        var logicalOperatorBox = new ComboBox
+        {
+            Width = 82,
+            ItemsSource = Enum.GetValues<AdvancedSearchLogicalOperator>(),
+            SelectedItem = group.LogicalOperator
+        };
+        logicalOperatorBox.SelectionChanged += (_, _) =>
+        {
+            if (logicalOperatorBox.SelectedItem is AdvancedSearchLogicalOperator selected)
             {
-                field.Value = value;
+                group.LogicalOperator = selected;
+            }
+        };
+        header.Children.Add(logicalOperatorBox);
+
+        header.Children.Add(new TextBlock
+        {
+            Text = depth == 0 ? "Root group" : "Nested group",
+            VerticalAlignment = VerticalAlignment.Center,
+            FontWeight = Avalonia.Media.FontWeight.SemiBold
+        });
+
+        if (parent is not null)
+        {
+            var removeGroupButton = new Button { Content = "Remove group" };
+            removeGroupButton.Click += (_, _) =>
+            {
+                parent.Children.Remove(group);
+                RenderFilterBuilder();
+            };
+            header.Children.Add(removeGroupButton);
+        }
+
+        panel.Children.Add(header);
+
+        foreach (var child in group.Children.ToList())
+        {
+            if (child is AdvancedSearchCondition condition)
+            {
+                panel.Children.Add(CreateConditionControl(group, condition));
+            }
+            else if (child is AdvancedSearchGroup childGroup)
+            {
+                panel.Children.Add(CreateGroupControl(childGroup, group, depth + 1));
+            }
+        }
+
+        var actions = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8
+        };
+
+        var addConditionButton = new Button { Content = "Add filter" };
+        addConditionButton.Click += (_, _) =>
+        {
+            group.Children.Add(new AdvancedSearchCondition());
+            RenderFilterBuilder();
+        };
+        actions.Children.Add(addConditionButton);
+
+        var addGroupButton = new Button { Content = "Add group" };
+        addGroupButton.Click += (_, _) =>
+        {
+            var childGroup = new AdvancedSearchGroup();
+            childGroup.Children.Add(new AdvancedSearchCondition());
+            group.Children.Add(childGroup);
+            RenderFilterBuilder();
+        };
+        actions.Children.Add(addGroupButton);
+
+        panel.Children.Add(actions);
+        return border;
+    }
+
+    private Control CreateConditionControl(AdvancedSearchGroup parent, AdvancedSearchCondition condition)
+    {
+        var row = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions("2*,160,3*,Auto"),
+            ColumnSpacing = 8,
+            Margin = new Thickness(0, 0, 0, 4)
+        };
+
+        var fieldBox = new ComboBox
+        {
+            ItemsSource = _fieldNames,
+            SelectedItem = string.IsNullOrWhiteSpace(condition.FieldName) ? null : condition.FieldName
+        };
+        fieldBox.SelectionChanged += (_, _) =>
+        {
+            condition.FieldName = fieldBox.SelectedItem as string ?? string.Empty;
+        };
+        row.Children.Add(fieldBox);
+
+        var operatorBox = new ComboBox
+        {
+            ItemsSource = OperatorOptions,
+            SelectedItem = OperatorOptions.First(option => option.Operator == condition.Operator)
+        };
+        Grid.SetColumn(operatorBox, 1);
+        operatorBox.SelectionChanged += (_, _) =>
+        {
+            if (operatorBox.SelectedItem is AdvancedSearchOperatorOption selected)
+            {
+                condition.Operator = selected.Operator;
+            }
+        };
+        row.Children.Add(operatorBox);
+
+        var valueTextBox = new TextBox
+        {
+            Text = condition.Value,
+            Watermark = "Value"
+        };
+        Grid.SetColumn(valueTextBox, 2);
+        valueTextBox.TextChanged += (_, _) =>
+        {
+            condition.Value = valueTextBox.Text ?? string.Empty;
+        };
+        row.Children.Add(valueTextBox);
+
+        var removeButton = new Button
+        {
+            Content = "Remove"
+        };
+        Grid.SetColumn(removeButton, 3);
+        removeButton.Click += (_, _) =>
+        {
+            parent.Children.Remove(condition);
+            if (_rootGroup.Children.Count == 0)
+            {
+                _rootGroup.Children.Add(new AdvancedSearchCondition());
             }
 
-            _selectedFields.Add(field);
+            RenderFilterBuilder();
+        };
+        row.Children.Add(removeButton);
+
+        return row;
+    }
+
+    private static void NormalizeGroup(AdvancedSearchGroup group)
+    {
+        foreach (var childGroup in group.Children.OfType<AdvancedSearchGroup>())
+        {
+            NormalizeGroup(childGroup);
         }
+
+        var emptyConditions = group.Children
+            .OfType<AdvancedSearchCondition>()
+            .Where(condition =>
+                string.IsNullOrWhiteSpace(condition.FieldName) &&
+                string.IsNullOrWhiteSpace(condition.Value))
+            .Cast<AdvancedSearchFilterNode>()
+            .ToList();
+
+        foreach (var emptyCondition in emptyConditions)
+        {
+            group.Children.Remove(emptyCondition);
+        }
+
+        var emptyGroups = group.Children
+            .OfType<AdvancedSearchGroup>()
+            .Where(childGroup => childGroup.Children.Count == 0)
+            .Cast<AdvancedSearchFilterNode>()
+            .ToList();
+
+        foreach (var emptyGroup in emptyGroups)
+        {
+            group.Children.Remove(emptyGroup);
+        }
+    }
+
+    private static bool TryValidateGroup(AdvancedSearchGroup group, out string validationMessage)
+    {
+        foreach (var condition in group.Children.OfType<AdvancedSearchCondition>())
+        {
+            if (string.IsNullOrWhiteSpace(condition.FieldName))
+            {
+                validationMessage = "Every filter needs a field.";
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(condition.Value))
+            {
+                validationMessage = "Every filter needs a value.";
+                return false;
+            }
+        }
+
+        foreach (var childGroup in group.Children.OfType<AdvancedSearchGroup>())
+        {
+            if (!TryValidateGroup(childGroup, out validationMessage))
+            {
+                return false;
+            }
+        }
+
+        validationMessage = string.Empty;
+        return true;
     }
 
     private static bool TryParseUtc(string? text, out DateTimeOffset value)
@@ -151,26 +352,76 @@ public sealed partial class AdvancedSearchDialog : Window
     }
 }
 
-public sealed class AdvancedSearchField
+public enum AdvancedSearchLogicalOperator
 {
-    public AdvancedSearchField(string name)
-    {
-        Name = name;
-    }
+    And,
+    Or
+}
 
-    public string Name { get; }
-    public bool IsSelected { get; set; }
+public enum AdvancedSearchComparisonOperator
+{
+    Equals,
+    Contains
+}
+
+public abstract class AdvancedSearchFilterNode
+{
+    public abstract AdvancedSearchFilterNode Clone();
+}
+
+public sealed class AdvancedSearchGroup : AdvancedSearchFilterNode
+{
+    public AdvancedSearchLogicalOperator LogicalOperator { get; set; } = AdvancedSearchLogicalOperator.And;
+    public ObservableCollection<AdvancedSearchFilterNode> Children { get; } = new();
+
+    public override AdvancedSearchFilterNode Clone()
+    {
+        var clone = new AdvancedSearchGroup
+        {
+            LogicalOperator = LogicalOperator
+        };
+
+        foreach (var child in Children)
+        {
+            clone.Children.Add(child.Clone());
+        }
+
+        return clone;
+    }
+}
+
+public sealed class AdvancedSearchCondition : AdvancedSearchFilterNode
+{
+    public string FieldName { get; set; } = string.Empty;
+    public AdvancedSearchComparisonOperator Operator { get; set; } = AdvancedSearchComparisonOperator.Equals;
     public string Value { get; set; } = string.Empty;
+
+    public override AdvancedSearchFilterNode Clone()
+    {
+        return new AdvancedSearchCondition
+        {
+            FieldName = FieldName,
+            Operator = Operator,
+            Value = Value
+        };
+    }
+}
+
+public sealed record AdvancedSearchOperatorOption(
+    string Label,
+    AdvancedSearchComparisonOperator Operator)
+{
+    public override string ToString() => Label;
 }
 
 public sealed record AdvancedSearchRequest(
     DateTimeOffset StartUtc,
     DateTimeOffset EndUtc,
-    IReadOnlyDictionary<string, string> Criteria);
+    AdvancedSearchGroup Filter);
 
 public sealed class AdvancedSearchState
 {
     public DateTimeOffset? StartUtc { get; set; }
     public DateTimeOffset? EndUtc { get; set; }
-    public Dictionary<string, string> Criteria { get; } = new(StringComparer.OrdinalIgnoreCase);
+    public AdvancedSearchGroup Filter { get; set; } = new();
 }

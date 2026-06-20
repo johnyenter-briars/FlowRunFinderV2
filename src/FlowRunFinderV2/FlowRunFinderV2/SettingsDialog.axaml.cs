@@ -14,6 +14,7 @@ public sealed partial class SettingsDialog : Window
     public SettingsDialog(AppSettings settings)
     {
         InitializeComponent();
+        this.ApplyAppIcon();
         _defaultRunCountNumeric.Value = settings.DefaultRunCount;
         _logVerbosityComboBox.ItemsSource = Enum.GetValues<LogVerbosity>();
         _logVerbosityComboBox.SelectedItem = settings.LogVerbosity;

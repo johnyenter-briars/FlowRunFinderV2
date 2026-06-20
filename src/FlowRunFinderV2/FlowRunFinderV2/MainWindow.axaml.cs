@@ -7,8 +7,6 @@ using Avalonia.Data;
 using Avalonia.Data.Converters;
 using Avalonia.Input;
 using Avalonia.Interactivity;
-using Avalonia.Media.Imaging;
-using Avalonia.Platform;
 using Avalonia.Threading;
 using FlowRunFinderV2.Models;
 using FlowRunFinderV2.Services;
@@ -20,6 +18,7 @@ public sealed partial class MainWindow : Window
     private const int FixedRunColumnCount = 4;
 
     private readonly AppDataStore _appDataStore = new();
+    private readonly SettingsManager _settingsManager;
     private readonly AppLogger _logger;
     private readonly ObservableCollection<CloudFlow> _flows = new();
     private readonly ObservableCollection<FlowRun> _runs = new();
@@ -40,7 +39,8 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        SetWindowIcon();
+        this.ApplyAppIcon();
+        _settingsManager = new SettingsManager(_appDataStore.AppDataFolder);
         _logger = new AppLogger(_appDataStore.LogsFolder);
 
         FlowComboBox.ItemsSource = _flows;
@@ -50,19 +50,13 @@ public sealed partial class MainWindow : Window
         Opened += OnOpened;
     }
 
-    private void SetWindowIcon()
-    {
-        var iconUri = new Uri("avares://FlowRunFinderV2/Assets/FlowRunFinderV2.ico");
-        using var stream = AssetLoader.Open(iconUri);
-        Icon = new WindowIcon(stream);
-    }
-
     private async void OnOpened(object? sender, EventArgs e)
     {
         try
         {
-            _settings = await _appDataStore.LoadSettingsAsync();
+            _settings = await _settingsManager.LoadAsync();
             NormalizeSettings();
+            await _settingsManager.SaveAsync(_settings);
             _logger.SetVerbosity(_settings.LogVerbosity);
             _logger.Info("Application opened.");
             await SelectStartupConnectionAsync();
@@ -93,10 +87,13 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        _settings.DefaultRunCount = result.DefaultRunCount;
-        _settings.LogVerbosity = result.LogVerbosity;
+        await _settingsManager.UpdateAsync(settings =>
+        {
+            settings.DefaultRunCount = result.DefaultRunCount;
+            settings.LogVerbosity = result.LogVerbosity;
+        });
+        _settings = _settingsManager.Current;
         _logger.SetVerbosity(_settings.LogVerbosity);
-        await _appDataStore.SaveSettingsAsync(_settings);
         _logger.Info($"Settings saved. DefaultRunCount={_settings.DefaultRunCount}; LogVerbosity={_settings.LogVerbosity}.");
         SetStatus($"Settings saved. Default run query count is {_settings.DefaultRunCount}.");
     }
@@ -285,7 +282,7 @@ public sealed partial class MainWindow : Window
             _powerAutomateAuthService = new PowerAutomateAuthService(_appDataStore.GetPowerAutomateTokenCachePath(connection.Id));
 
             ConnectionTextBlock.Text = $"{connection.Name} - {connection.EnvironmentUrl}";
-            await _appDataStore.SaveSettingsAsync(_settings, cancellationToken);
+            await _settingsManager.SaveAsync(_settings, cancellationToken);
 
             _flows.Clear();
             _runs.Clear();
@@ -411,7 +408,7 @@ public sealed partial class MainWindow : Window
             ResetRunColumns();
             ResetTriggerColumnOptions(clearKnownKeys: false);
             SetStatus($"Searching runs for {flow.Name}...");
-            _logger.Info($"Advanced search started. FlowId={flow.WorkflowId}; FlowName={flow.Name}; StartUtc={request.StartUtc:O}; EndUtc={request.EndUtc:O}; Criteria={FormatCriteria(request.Criteria)}.");
+            _logger.Info($"Advanced search started. FlowId={flow.WorkflowId}; FlowName={flow.Name}; StartUtc={request.StartUtc:O}; EndUtc={request.EndUtc:O}; Filter={FormatFilter(request.Filter)}.");
 
             if (_powerAutomateAuthService is null)
             {
@@ -438,7 +435,7 @@ public sealed partial class MainWindow : Window
                 flow.WorkflowId,
                 request.StartUtc,
                 request.EndUtc,
-                request.Criteria,
+                request.Filter,
                 cancellationToken);
 
             var triggerKeys = new SortedSet<string>(AttributeNameComparer.Instance);
@@ -474,10 +471,7 @@ public sealed partial class MainWindow : Window
             EndUtc = request.EndUtc
         };
 
-        foreach (var criterion in request.Criteria)
-        {
-            state.Criteria[criterion.Key] = criterion.Value;
-        }
+        state.Filter = request.Filter.Clone() as AdvancedSearchGroup ?? new AdvancedSearchGroup();
 
         _advancedSearchStateByFlowId[workflowId] = state;
     }
@@ -556,17 +550,20 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        var flowId = flow.WorkflowId.ToString("D");
-        if (selectedColumns.Count == 0)
+        await _settingsManager.UpdateAsync(settings =>
         {
-            _settings.SelectedTriggerColumnsByFlowId.Remove(flowId);
-        }
-        else
-        {
-            _settings.SelectedTriggerColumnsByFlowId[flowId] = selectedColumns;
-        }
+            var flowId = flow.WorkflowId.ToString("D");
+            if (selectedColumns.Count == 0)
+            {
+                settings.SelectedTriggerColumnsByFlowId.Remove(flowId);
+            }
+            else
+            {
+                settings.SelectedTriggerColumnsByFlowId[flowId] = selectedColumns;
+            }
+        });
 
-        await _appDataStore.SaveSettingsAsync(_settings);
+        _settings = _settingsManager.Current;
     }
 
     private void AddTriggerColumns(IEnumerable<string> triggerKeys)
@@ -654,11 +651,21 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private static string FormatCriteria(IReadOnlyDictionary<string, string> criteria)
+    private static string FormatFilter(AdvancedSearchGroup filter)
     {
-        return criteria.Count == 0
-            ? "<none>"
-            : string.Join("; ", criteria.Select(criterion => $"{criterion.Key}={criterion.Value}"));
+        if (filter.Children.Count == 0)
+        {
+            return "<none>";
+        }
+
+        var parts = filter.Children.Select(child => child switch
+        {
+            AdvancedSearchCondition condition => $"{condition.FieldName} {condition.Operator} {condition.Value}",
+            AdvancedSearchGroup group => $"({FormatFilter(group)})",
+            _ => child.GetType().Name
+        });
+
+        return string.Join($" {filter.LogicalOperator.ToString().ToUpperInvariant()} ", parts);
     }
 
     private void SetStatus(string message)

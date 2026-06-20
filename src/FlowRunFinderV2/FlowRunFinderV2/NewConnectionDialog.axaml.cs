@@ -13,6 +13,7 @@ public sealed partial class NewConnectionDialog : Window
     public NewConnectionDialog()
     {
         InitializeComponent();
+        this.ApplyAppIcon();
     }
 
     private void InitializeComponent()

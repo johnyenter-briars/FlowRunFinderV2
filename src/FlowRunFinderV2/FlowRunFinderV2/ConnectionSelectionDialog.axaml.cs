@@ -14,6 +14,7 @@ public sealed partial class ConnectionSelectionDialog : Window
     public ConnectionSelectionDialog(IEnumerable<ConnectionProfile> connections)
     {
         InitializeComponent();
+        this.ApplyAppIcon();
         _connectionsListBox.ItemsSource = connections;
     }
 
