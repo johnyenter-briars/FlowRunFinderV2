@@ -15,14 +15,15 @@ public sealed partial class MainWindow : Window
     private const int FixedRunColumnCount = 4;
 
     private readonly AppDataStore _appDataStore = new();
-    private readonly DataverseAuthService _authService = new();
-    private readonly PowerAutomateAuthService _powerAutomateAuthService = new();
     private readonly ObservableCollection<CloudFlow> _flows = new();
     private readonly ObservableCollection<FlowRun> _runs = new();
     private readonly ObservableCollection<TriggerColumnOption> _triggerColumnOptions = new();
     private readonly SortedSet<string> _knownTriggerKeys = new(AttributeNameComparer.Instance);
     private readonly Dictionary<Guid, AdvancedSearchState> _advancedSearchStateByFlowId = new();
     private AppSettings _settings = new();
+    private ConnectionProfile? _currentConnection;
+    private DataverseAuthService? _authService;
+    private PowerAutomateAuthService? _powerAutomateAuthService;
     private DataverseClient? _client;
     private Uri? _environmentUrl;
     private string? _deviceVerificationUrl;
@@ -45,7 +46,7 @@ public sealed partial class MainWindow : Window
         try
         {
             _settings = await _appDataStore.LoadSettingsAsync();
-            EnvironmentUrlTextBox.Text = _settings.LastEnvironmentUrl;
+            await SelectStartupConnectionAsync();
         }
         catch (Exception ex)
         {
@@ -53,29 +54,14 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private async void OnConnectClicked(object? sender, RoutedEventArgs e)
+    private async void OnNewConnectionClicked(object? sender, RoutedEventArgs e)
     {
-        await RunUiActionAsync(async cancellationToken =>
-        {
-            var environmentUrl = ParseEnvironmentUrl();
-            _settings.LastEnvironmentUrl = environmentUrl.GetLeftPart(UriPartial.Authority);
-            await _appDataStore.SaveSettingsAsync(_settings, cancellationToken);
+        await CreateNewConnectionAsync();
+    }
 
-            SetStatus("Authenticating...");
-            DeviceCodePanel.IsVisible = false;
-
-            var token = await _authService.GetTokenAsync(
-                environmentUrl,
-                ShowDeviceCodePrompt,
-                cancellationToken);
-
-            _client?.Dispose();
-            _client = new DataverseClient(environmentUrl, token.AccessToken);
-            _environmentUrl = environmentUrl;
-
-            SetStatus($"Connected. Token expires {token.ExpiresOn.LocalDateTime:g}. Loading flows...");
-            await LoadFlowsAsync(cancellationToken);
-        });
+    private async void OnSwitchConnectionClicked(object? sender, RoutedEventArgs e)
+    {
+        await ShowConnectionSelectionAsync(forceSelection: false);
     }
 
     private async void OnFlowSelectionChanged(object? sender, SelectionChangedEventArgs e)
@@ -143,6 +129,116 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private async Task SelectStartupConnectionAsync()
+    {
+        await ShowConnectionSelectionAsync(forceSelection: true);
+    }
+
+    private async Task ShowConnectionSelectionAsync(bool forceSelection)
+    {
+        while (true)
+        {
+            var connections = await _appDataStore.LoadConnectionsAsync();
+            if (connections.Count == 0)
+            {
+                var created = await CreateNewConnectionAsync();
+                if (created || !forceSelection)
+                {
+                    return;
+                }
+
+                continue;
+            }
+
+            var dialog = new ConnectionSelectionDialog(connections);
+            var result = await dialog.ShowDialog<ConnectionSelectionResult?>(this);
+            if (result is null)
+            {
+                if (forceSelection)
+                {
+                    Close();
+                }
+
+                return;
+            }
+
+            if (result.CreateNew)
+            {
+                var created = await CreateNewConnectionAsync();
+                if (created || !forceSelection)
+                {
+                    return;
+                }
+
+                continue;
+            }
+
+            if (result.Connection is not null)
+            {
+                await OpenConnectionAsync(result.Connection);
+                return;
+            }
+        }
+    }
+
+    private async Task<bool> CreateNewConnectionAsync()
+    {
+        var dialog = new NewConnectionDialog();
+        var request = await dialog.ShowDialog<NewConnectionRequest?>(this);
+        if (request is null)
+        {
+            return false;
+        }
+
+        var connection = await _appDataStore.CreateConnectionAsync(request.Name, request.EnvironmentUrl);
+        try
+        {
+            await OpenConnectionAsync(connection);
+            return true;
+        }
+        catch
+        {
+            throw;
+        }
+    }
+
+    private async Task OpenConnectionAsync(ConnectionProfile connection)
+    {
+        await RunUiActionAsync(async cancellationToken =>
+        {
+            _currentConnection = connection;
+            _environmentUrl = new Uri(connection.EnvironmentUrl);
+            _authService = new DataverseAuthService(_appDataStore.GetDataverseTokenCachePath(connection.Id));
+            _powerAutomateAuthService = new PowerAutomateAuthService(_appDataStore.GetPowerAutomateTokenCachePath(connection.Id));
+
+            ConnectionTextBlock.Text = $"{connection.Name} - {connection.EnvironmentUrl}";
+            _settings.LastConnectionId = connection.Id;
+            _settings.LastEnvironmentUrl = connection.EnvironmentUrl;
+            await _appDataStore.SaveSettingsAsync(_settings, cancellationToken);
+
+            _flows.Clear();
+            _runs.Clear();
+            ResetRunColumns();
+            ResetTriggerColumnOptions(clearKnownKeys: true);
+            FlowComboBox.SelectedItem = null;
+            RefreshRunsButton.IsEnabled = false;
+            AdvancedSearchButton.IsEnabled = false;
+            DeviceCodePanel.IsVisible = false;
+
+            SetStatus("Authenticating...");
+            var token = await _authService.GetTokenAsync(
+                _environmentUrl,
+                ShowDeviceCodePrompt,
+                cancellationToken);
+
+            _client?.Dispose();
+            _client = new DataverseClient(_environmentUrl, token.AccessToken);
+
+            SetStatus($"Connected. Token expires {token.ExpiresOn.LocalDateTime:g}. Loading flows...");
+            await LoadFlowsAsync(cancellationToken);
+        });
+    }
+
     private async Task LoadFlowsAsync(CancellationToken cancellationToken)
     {
         if (_client is null)
@@ -181,6 +277,11 @@ public sealed partial class MainWindow : Window
             ResetRunColumns();
             ResetTriggerColumnOptions(clearKnownKeys: true);
             SetStatus($"Loading latest 50 runs for {flow.Name}...");
+
+            if (_powerAutomateAuthService is null)
+            {
+                return;
+            }
 
             var paToken = await _powerAutomateAuthService.GetTokenAsync(
                 ShowDeviceCodePrompt,
@@ -231,6 +332,11 @@ public sealed partial class MainWindow : Window
             ResetRunColumns();
             ResetTriggerColumnOptions(clearKnownKeys: false);
             SetStatus($"Searching runs for {flow.Name}...");
+
+            if (_powerAutomateAuthService is null)
+            {
+                return;
+            }
 
             var paToken = await _powerAutomateAuthService.GetTokenAsync(
                 ShowDeviceCodePrompt,
@@ -401,7 +507,8 @@ public sealed partial class MainWindow : Window
 
     private async Task RunUiActionAsync(Func<CancellationToken, Task> action)
     {
-        ConnectButton.IsEnabled = false;
+        NewConnectionButton.IsEnabled = false;
+        SwitchConnectionButton.IsEnabled = false;
         RefreshRunsButton.IsEnabled = false;
         AdvancedSearchButton.IsEnabled = false;
         BeginBusy();
@@ -418,32 +525,11 @@ public sealed partial class MainWindow : Window
         finally
         {
             EndBusy();
-            ConnectButton.IsEnabled = true;
+            NewConnectionButton.IsEnabled = true;
+            SwitchConnectionButton.IsEnabled = true;
             RefreshRunsButton.IsEnabled = _client is not null && FlowComboBox.SelectedItem is CloudFlow;
             AdvancedSearchButton.IsEnabled = _triggerColumnOptions.Count > 0;
         }
-    }
-
-    private Uri ParseEnvironmentUrl()
-    {
-        var text = EnvironmentUrlTextBox.Text?.Trim();
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            throw new InvalidOperationException("Enter a Dataverse environment URL.");
-        }
-
-        if (!text.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
-            !text.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
-        {
-            text = $"https://{text}";
-        }
-
-        if (!Uri.TryCreate(text, UriKind.Absolute, out var uri))
-        {
-            throw new InvalidOperationException("Enter a valid Dataverse environment URL.");
-        }
-
-        return uri;
     }
 
     private void ShowDeviceCodePrompt(DeviceCodePrompt prompt)

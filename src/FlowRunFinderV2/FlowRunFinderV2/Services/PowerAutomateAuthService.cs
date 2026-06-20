@@ -9,7 +9,7 @@ public sealed class PowerAutomateAuthService
 
     private readonly IPublicClientApplication _app;
 
-    public PowerAutomateAuthService()
+    public PowerAutomateAuthService(string? tokenCachePath = null)
     {
         _app = PublicClientApplicationBuilder
             .Create(ClientId)
@@ -17,7 +17,14 @@ public sealed class PowerAutomateAuthService
             .WithDefaultRedirectUri()
             .Build();
 
-        TokenCacheProvider.Register(_app.UserTokenCache, "power_automate_msal_cache.bin3");
+        if (string.IsNullOrWhiteSpace(tokenCachePath))
+        {
+            TokenCacheProvider.Register(_app.UserTokenCache, "power_automate_msal_cache.bin3");
+        }
+        else
+        {
+            TokenCacheProvider.RegisterPath(_app.UserTokenCache, tokenCachePath);
+        }
     }
 
     public async Task<AuthResult> GetTokenAsync(

@@ -10,15 +10,20 @@
         MinHeight="560">
   <Grid>
     <Grid RowDefinitions="Auto,Auto,*" Margin="18" RowSpacing="14">
-      <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
-      <TextBlock Text="Environment URL" VerticalAlignment="Center" />
-      <TextBox x:Name="EnvironmentUrlTextBox"
-               Grid.Column="1"
-               Watermark="https://yourorg.crm.dynamics.com" />
-      <Button x:Name="ConnectButton"
+      <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
+      <TextBlock Text="Connection" VerticalAlignment="Center" />
+      <TextBlock x:Name="ConnectionTextBlock"
+                 Grid.Column="1"
+                 VerticalAlignment="Center"
+                 Text="No connection selected." />
+      <Button x:Name="NewConnectionButton"
               Grid.Column="2"
-              Content="Connect"
-              Click="OnConnectClicked" />
+              Content="New"
+              Click="OnNewConnectionClicked" />
+      <Button x:Name="SwitchConnectionButton"
+              Grid.Column="3"
+              Content="Switch"
+              Click="OnSwitchConnectionClicked" />
       </Grid>
 
       <Grid Grid.Row="1" RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
