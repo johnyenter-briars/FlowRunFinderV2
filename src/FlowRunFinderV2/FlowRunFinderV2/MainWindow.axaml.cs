@@ -21,8 +21,10 @@ public sealed partial class MainWindow : Window
     private readonly SettingsManager _settingsManager;
     private readonly AppLogger _logger;
     private readonly ObservableCollection<CloudFlow> _flows = new();
+    private readonly ObservableCollection<CloudFlow> _filteredFlows = new();
     private readonly ObservableCollection<FlowRun> _runs = new();
     private readonly ObservableCollection<TriggerColumnOption> _triggerColumnOptions = new();
+    private readonly ObservableCollection<TriggerColumnOption> _filteredTriggerColumnOptions = new();
     private readonly SortedSet<string> _knownTriggerKeys = new(AttributeNameComparer.Instance);
     private readonly Dictionary<Guid, AdvancedSearchState> _advancedSearchStateByFlowId = new();
     private AppSettings _settings = new();
@@ -30,6 +32,7 @@ public sealed partial class MainWindow : Window
     private DataverseAuthService? _authService;
     private PowerAutomateAuthService? _powerAutomateAuthService;
     private DataverseClient? _client;
+    private CloudFlow? _selectedFlow;
     private Uri? _environmentUrl;
     private string? _deviceVerificationUrl;
     private string? _deviceUserCode;
@@ -43,9 +46,9 @@ public sealed partial class MainWindow : Window
         _settingsManager = new SettingsManager(_appDataStore.AppDataFolder);
         _logger = new AppLogger(_appDataStore.LogsFolder);
 
-        FlowComboBox.ItemsSource = _flows;
+        FlowListBox.ItemsSource = _filteredFlows;
         RunsDataGrid.ItemsSource = _runs;
-        TriggerColumnsItemsControl.ItemsSource = _triggerColumnOptions;
+        TriggerColumnsItemsControl.ItemsSource = _filteredTriggerColumnOptions;
 
         Opened += OnOpened;
     }
@@ -98,12 +101,31 @@ public sealed partial class MainWindow : Window
         SetStatus($"Settings saved. Default run query count is {_settings.DefaultRunCount}.");
     }
 
-    private async void OnFlowSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    private void OnFlowPickerClicked(object? sender, RoutedEventArgs e)
     {
-        if (FlowComboBox.SelectedItem is CloudFlow)
+        FlowSearchTextBox.Text = string.Empty;
+        RefreshFilteredFlows();
+        FlowPickerPopup.IsOpen = true;
+        Dispatcher.UIThread.Post(() => FlowSearchTextBox.Focus());
+    }
+
+    private void OnFlowSearchTextChanged(object? sender, TextChangedEventArgs e)
+    {
+        RefreshFilteredFlows();
+    }
+
+    private async void OnFlowListSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (FlowListBox.SelectedItem is not CloudFlow flow)
         {
-            await LoadSelectedFlowRunsAsync();
+            return;
         }
+
+        _selectedFlow = flow;
+        FlowPickerButton.Content = flow.Name;
+        FlowPickerPopup.IsOpen = false;
+        FlowListBox.SelectedItem = null;
+        await LoadSelectedFlowRunsAsync();
     }
 
     private async void OnRefreshRunsClicked(object? sender, RoutedEventArgs e)
@@ -113,7 +135,7 @@ public sealed partial class MainWindow : Window
 
     private async void OnAdvancedSearchClicked(object? sender, RoutedEventArgs e)
     {
-        if (FlowComboBox.SelectedItem is not CloudFlow flow)
+        if (_selectedFlow is not { } flow)
         {
             return;
         }
@@ -132,7 +154,19 @@ public sealed partial class MainWindow : Window
 
     private void OnTriggerColumnsClicked(object? sender, RoutedEventArgs e)
     {
+        if (!TriggerColumnsPopup.IsOpen)
+        {
+            TriggerColumnsSearchTextBox.Text = string.Empty;
+            RefreshFilteredTriggerColumnOptions();
+            Dispatcher.UIThread.Post(() => TriggerColumnsSearchTextBox.Focus());
+        }
+
         TriggerColumnsPopup.IsOpen = !TriggerColumnsPopup.IsOpen;
+    }
+
+    private void OnTriggerColumnsSearchTextChanged(object? sender, TextChangedEventArgs e)
+    {
+        RefreshFilteredTriggerColumnOptions();
     }
 
     private void OnTriggerColumnSelectionChanged(object? sender, RoutedEventArgs e)
@@ -288,7 +322,7 @@ public sealed partial class MainWindow : Window
             _runs.Clear();
             ResetRunColumns();
             ResetTriggerColumnOptions(clearKnownKeys: true);
-            FlowComboBox.SelectedItem = null;
+            ClearSelectedFlow();
             RefreshRunsButton.IsEnabled = false;
             AdvancedSearchButton.IsEnabled = false;
             DeviceCodePanel.IsVisible = false;
@@ -320,7 +354,7 @@ public sealed partial class MainWindow : Window
         _runs.Clear();
         ResetRunColumns();
         ResetTriggerColumnOptions(clearKnownKeys: true);
-        FlowComboBox.SelectedItem = null;
+        ClearSelectedFlow();
         RefreshRunsButton.IsEnabled = false;
         AdvancedSearchButton.IsEnabled = false;
 
@@ -331,6 +365,7 @@ public sealed partial class MainWindow : Window
             _flows.Add(flow);
         }
 
+        RefreshFilteredFlows();
         SetStatus($"Loaded {_flows.Count} cloud flows. Pick a flow to load the latest {_settings.DefaultRunCount} runs.");
     }
 
@@ -338,7 +373,7 @@ public sealed partial class MainWindow : Window
     {
         await RunUiActionAsync(async cancellationToken =>
         {
-            if (_environmentUrl is null || FlowComboBox.SelectedItem is not CloudFlow flow)
+            if (_environmentUrl is null || _selectedFlow is not { } flow)
             {
                 return;
             }
@@ -487,6 +522,7 @@ public sealed partial class MainWindow : Window
     private void ResetTriggerColumnOptions(bool clearKnownKeys)
     {
         _triggerColumnOptions.Clear();
+        _filteredTriggerColumnOptions.Clear();
         if (clearKnownKeys)
         {
             _knownTriggerKeys.Clear();
@@ -495,6 +531,49 @@ public sealed partial class MainWindow : Window
         TriggerColumnsButton.IsEnabled = false;
         AdvancedSearchButton.IsEnabled = _knownTriggerKeys.Count > 0;
         TriggerColumnsPopup.IsOpen = false;
+    }
+
+    private void ClearSelectedFlow()
+    {
+        _selectedFlow = null;
+        FlowPickerButton.Content = "Select a flow";
+        FlowPickerPopup.IsOpen = false;
+        FlowSearchTextBox.Text = string.Empty;
+        FlowListBox.SelectedItem = null;
+        _filteredFlows.Clear();
+    }
+
+    private void RefreshFilteredFlows()
+    {
+        var searchText = FlowSearchTextBox.Text?.Trim();
+        _filteredFlows.Clear();
+
+        var filtered = string.IsNullOrWhiteSpace(searchText)
+            ? _flows
+            : _flows.Where(flow =>
+                flow.Name.Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
+                flow.WorkflowId.ToString("D").Contains(searchText, StringComparison.OrdinalIgnoreCase));
+
+        foreach (var flow in filtered.OrderBy(flow => flow.Name, StringComparer.OrdinalIgnoreCase))
+        {
+            _filteredFlows.Add(flow);
+        }
+    }
+
+    private void RefreshFilteredTriggerColumnOptions()
+    {
+        var searchText = TriggerColumnsSearchTextBox.Text?.Trim();
+        _filteredTriggerColumnOptions.Clear();
+
+        var filtered = string.IsNullOrWhiteSpace(searchText)
+            ? _triggerColumnOptions
+            : _triggerColumnOptions.Where(option =>
+                option.Name.Contains(searchText, StringComparison.OrdinalIgnoreCase));
+
+        foreach (var option in filtered.OrderBy(option => option.Name, AttributeNameComparer.Instance))
+        {
+            _filteredTriggerColumnOptions.Add(option);
+        }
     }
 
     private void SetTriggerColumnOptions(CloudFlow flow, IEnumerable<string> triggerKeys)
@@ -511,6 +590,7 @@ public sealed partial class MainWindow : Window
     private void RestoreTriggerColumnOptions(CloudFlow flow)
     {
         _triggerColumnOptions.Clear();
+        _filteredTriggerColumnOptions.Clear();
         var flowId = flow.WorkflowId.ToString("D");
         var selectedColumns = _settings.SelectedTriggerColumnsByFlowId.TryGetValue(flowId, out var cachedColumns)
             ? new HashSet<string>(cachedColumns, StringComparer.OrdinalIgnoreCase)
@@ -524,6 +604,7 @@ public sealed partial class MainWindow : Window
             });
         }
 
+        RefreshFilteredTriggerColumnOptions();
         TriggerColumnsButton.IsEnabled = _triggerColumnOptions.Count > 0;
         AdvancedSearchButton.IsEnabled = _triggerColumnOptions.Count > 0;
         AddTriggerColumns(_triggerColumnOptions
@@ -545,7 +626,7 @@ public sealed partial class MainWindow : Window
 
         AddTriggerColumns(selectedColumns);
 
-        if (!saveSelection || FlowComboBox.SelectedItem is not CloudFlow flow)
+        if (!saveSelection || _selectedFlow is not { } flow)
         {
             return;
         }
@@ -611,7 +692,7 @@ public sealed partial class MainWindow : Window
             NewConnectionButton.IsEnabled = true;
             SwitchConnectionButton.IsEnabled = true;
             SettingsButton.IsEnabled = true;
-            RefreshRunsButton.IsEnabled = _client is not null && FlowComboBox.SelectedItem is CloudFlow;
+            RefreshRunsButton.IsEnabled = _client is not null && _selectedFlow is not null;
             AdvancedSearchButton.IsEnabled = _triggerColumnOptions.Count > 0;
         }
     }

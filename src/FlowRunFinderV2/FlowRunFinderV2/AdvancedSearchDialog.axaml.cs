@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Markup.Xaml;
@@ -211,16 +212,8 @@ public sealed partial class AdvancedSearchDialog : Window
             Margin = new Thickness(0, 0, 0, 4)
         };
 
-        var fieldBox = new ComboBox
-        {
-            ItemsSource = _fieldNames,
-            SelectedItem = string.IsNullOrWhiteSpace(condition.FieldName) ? null : condition.FieldName
-        };
-        fieldBox.SelectionChanged += (_, _) =>
-        {
-            condition.FieldName = fieldBox.SelectedItem as string ?? string.Empty;
-        };
-        row.Children.Add(fieldBox);
+        var fieldSelector = CreateFieldSelector(condition);
+        row.Children.Add(fieldSelector);
 
         var operatorBox = new ComboBox
         {
@@ -267,6 +260,103 @@ public sealed partial class AdvancedSearchDialog : Window
         row.Children.Add(removeButton);
 
         return row;
+    }
+
+    private Control CreateFieldSelector(AdvancedSearchCondition condition)
+    {
+        var filteredFieldNames = new ObservableCollection<string>();
+        var root = new Grid();
+        var button = new Button
+        {
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            HorizontalContentAlignment = HorizontalAlignment.Left,
+            Content = string.IsNullOrWhiteSpace(condition.FieldName) ? "Select field" : condition.FieldName
+        };
+
+        var searchTextBox = new TextBox
+        {
+            Watermark = "Search attributes"
+        };
+
+        var listBox = new ListBox
+        {
+            ItemsSource = filteredFieldNames,
+            MaxHeight = 300
+        };
+
+        var popupBorder = new Border
+        {
+            Width = 320,
+            MaxHeight = 360,
+            Padding = new Thickness(10),
+            CornerRadius = new CornerRadius(6),
+            Background = Brushes.Black,
+            BorderBrush = Brushes.Gray,
+            BorderThickness = new Thickness(1),
+            Child = new Grid
+            {
+                RowDefinitions = new RowDefinitions("Auto,*"),
+                RowSpacing = 8,
+                Children =
+                {
+                    searchTextBox,
+                    listBox
+                }
+            }
+        };
+
+        var popup = new Popup
+        {
+            PlacementTarget = button,
+            Placement = PlacementMode.Bottom,
+            IsLightDismissEnabled = true,
+            Child = popupBorder
+        };
+
+        Grid.SetRow(listBox, 1);
+
+        void RefreshFields()
+        {
+            var searchText = searchTextBox.Text?.Trim();
+            filteredFieldNames.Clear();
+
+            var filtered = string.IsNullOrWhiteSpace(searchText)
+                ? _fieldNames
+                : _fieldNames.Where(fieldName =>
+                    fieldName.Contains(searchText, StringComparison.OrdinalIgnoreCase));
+
+            foreach (var fieldName in filtered.OrderBy(fieldName => fieldName, AttributeNameComparer.Instance))
+            {
+                filteredFieldNames.Add(fieldName);
+            }
+        }
+
+        button.Click += (_, _) =>
+        {
+            searchTextBox.Text = string.Empty;
+            RefreshFields();
+            popup.IsOpen = true;
+            searchTextBox.Focus();
+        };
+
+        searchTextBox.TextChanged += (_, _) => RefreshFields();
+        listBox.SelectionChanged += (_, _) =>
+        {
+            if (listBox.SelectedItem is not string fieldName)
+            {
+                return;
+            }
+
+            condition.FieldName = fieldName;
+            button.Content = fieldName;
+            popup.IsOpen = false;
+            listBox.SelectedItem = null;
+        };
+
+        root.Children.Add(button);
+        root.Children.Add(popup);
+        RefreshFields();
+        return root;
     }
 
     private static void NormalizeGroup(AdvancedSearchGroup group)
