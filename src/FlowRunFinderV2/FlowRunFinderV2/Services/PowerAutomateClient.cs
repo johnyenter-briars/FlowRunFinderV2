@@ -120,8 +120,7 @@ public sealed class PowerAutomateClient : IDisposable
                     break;
                 }
 
-                var flowRun = await CreateFlowRunAsync(environmentId, baseUrl, run, cancellationToken)
-                    .ConfigureAwait(false);
+                var flowRun = CreateFlowRunFromList(run, environmentId, baseUrl);
 
                 if (flowRun.StartedOn is null)
                 {
@@ -142,6 +141,9 @@ public sealed class PowerAutomateClient : IDisposable
                     _logger?.Info($"Advanced search reached run older than start UTC; stopping scan. FlowId={flowId}; RunName={flowRun.Name}; StartedUtc={startedUtc:O}; StartUtc={startUtc:O}; Inspected={inspected}; Matches={result.Count}.");
                     break;
                 }
+
+                await LoadTriggerOutputsFromRunContentAsync(environmentId, baseUrl, run, flowRun, cancellationToken)
+                    .ConfigureAwait(false);
 
                 if (MatchesCriteria(flowRun, criteria, out var criteriaDiagnostic))
                 {
@@ -168,27 +170,35 @@ public sealed class PowerAutomateClient : IDisposable
         JsonElement run,
         CancellationToken cancellationToken)
     {
-        var properties = run.TryGetProperty("properties", out var props)
-            ? props
-            : default;
-
-        var flowRun = new FlowRun
-        {
-            RunId = run.GetStringOrDefault("id") ?? run.GetStringOrDefault("name"),
-            Name = run.GetStringOrDefault("name"),
-            RunUrl = BuildRunUrl(environmentId, baseUrl, run.GetStringOrDefault("name")),
-            Status = properties.GetStringOrDefault("status") ?? run.GetStringOrDefault("status"),
-            StartedOn = properties.GetDateTimeOffsetOrDefault("startTime") ??
-                        properties.GetDateTimeOffsetOrDefault("starttime"),
-            EndedOn = properties.GetDateTimeOffsetOrDefault("endTime") ??
-                      properties.GetDateTimeOffsetOrDefault("endtime")
-        };
+        var flowRun = CreateFlowRunFromList(run, environmentId, baseUrl);
 
         await LoadTriggerOutputsFromRunContentAsync(environmentId, baseUrl, run, flowRun, cancellationToken)
             .ConfigureAwait(false);
         _logger?.Trace($"Created flow run. RunName={flowRun.Name}; Status={flowRun.Status}; Started={flowRun.StartedOn:O}; TriggerKeys={flowRun.TriggerInputs.Count}.");
 
         return flowRun;
+    }
+
+    private static FlowRun CreateFlowRunFromList(JsonElement run, string? environmentId = null, string? baseUrl = null)
+    {
+        var properties = run.TryGetProperty("properties", out var props)
+            ? props
+            : default;
+        var runName = run.GetStringOrDefault("name");
+
+        return new FlowRun
+        {
+            RunId = run.GetStringOrDefault("id") ?? runName,
+            Name = runName,
+            RunUrl = environmentId is not null && baseUrl is not null
+                ? BuildRunUrl(environmentId, baseUrl, runName)
+                : null,
+            Status = properties.GetStringOrDefault("status") ?? run.GetStringOrDefault("status"),
+            StartedOn = properties.GetDateTimeOffsetOrDefault("startTime") ??
+                        properties.GetDateTimeOffsetOrDefault("starttime"),
+            EndedOn = properties.GetDateTimeOffsetOrDefault("endTime") ??
+                      properties.GetDateTimeOffsetOrDefault("endtime")
+        };
     }
 
     private static string? BuildRunUrl(string environmentId, string flowBaseUrl, string? runName)
