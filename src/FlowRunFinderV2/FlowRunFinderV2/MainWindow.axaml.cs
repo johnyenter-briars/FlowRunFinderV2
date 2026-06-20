@@ -96,6 +96,11 @@ public sealed partial class MainWindow : Window
 
     private void OnTriggerColumnSelectionChanged(object? sender, RoutedEventArgs e)
     {
+        if (sender is CheckBox { DataContext: TriggerColumnOption option } checkBox)
+        {
+            option.IsSelected = checkBox.IsChecked == true;
+        }
+
         ApplySelectedTriggerColumns();
     }
 
