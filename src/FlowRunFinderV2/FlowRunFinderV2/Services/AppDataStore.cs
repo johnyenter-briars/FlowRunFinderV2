@@ -112,8 +112,7 @@ public sealed class AppDataStore
 
 public sealed class AppSettings
 {
-    public string? LastEnvironmentUrl { get; set; }
-    public Guid? LastConnectionId { get; set; }
+    public int DefaultRunCount { get; set; } = 10;
     public Dictionary<string, List<string>> SelectedTriggerColumnsByFlowId { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }
 

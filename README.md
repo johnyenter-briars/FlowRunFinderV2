@@ -2,14 +2,14 @@
 
 Standalone .NET 8 Avalonia app for browsing Power Automate flow runs from a Dataverse/Dynamics 365 environment.
 
-## First slice
+## Current behavior
 
-- Paste a Dataverse environment URL.
+- Pick an existing connection or create a new named connection.
 - Authenticate with device-code login.
-- Cache the MSAL token locally under `%LOCALAPPDATA%\FlowRunFinderV2`.
-- Remember the last environment URL in `%LOCALAPPDATA%\FlowRunFinderV2\settings.json`.
+- Cache connection-specific MSAL tokens under `%LOCALAPPDATA%\FlowRunFinderV2\connections\{connection-guid}`.
+- Store app-level settings in `%LOCALAPPDATA%\FlowRunFinderV2\settings.json`.
 - Load cloud flows from the `workflow` table.
-- Pick a flow and load the latest 50 runs from the Power Platform environment API.
+- Pick a flow and load the latest 10 runs from the Power Platform environment API by default.
 - Authenticate separately to Power Automate when needed.
 - Read trigger payloads from the run response and add dynamic trigger columns to the grid.
 
@@ -32,4 +32,4 @@ dotnet run --project .\src\FlowRunFinderV2\FlowRunFinderV2\FlowRunFinderV2.cspro
 
 If your tenant blocks the default public client id, create an app registration with public client/device-code support and replace `DefaultClientId` in `src/FlowRunFinderV2/FlowRunFinderV2/Services/DataverseAuthService.cs`.
 
-Power Automate tokens are cached separately in `%LOCALAPPDATA%\FlowRunFinderV2\power_automate_msal_cache.bin3`.
+The default run query count can be changed from the in-app Settings dialog.

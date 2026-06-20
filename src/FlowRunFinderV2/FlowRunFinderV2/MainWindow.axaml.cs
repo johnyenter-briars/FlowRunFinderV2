@@ -1,9 +1,12 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Data;
 using Avalonia.Data.Converters;
 using Avalonia.Interactivity;
+using Avalonia.Media.Imaging;
+using Avalonia.Platform;
 using Avalonia.Threading;
 using FlowRunFinderV2.Models;
 using FlowRunFinderV2.Services;
@@ -33,6 +36,7 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        SetWindowIcon();
 
         FlowComboBox.ItemsSource = _flows;
         RunsDataGrid.ItemsSource = _runs;
@@ -41,11 +45,19 @@ public sealed partial class MainWindow : Window
         Opened += OnOpened;
     }
 
+    private void SetWindowIcon()
+    {
+        var iconUri = new Uri("avares://FlowRunFinderV2/Assets/FlowRunFinderV2.ico");
+        using var stream = AssetLoader.Open(iconUri);
+        Icon = new WindowIcon(stream);
+    }
+
     private async void OnOpened(object? sender, EventArgs e)
     {
         try
         {
             _settings = await _appDataStore.LoadSettingsAsync();
+            NormalizeSettings();
             await SelectStartupConnectionAsync();
         }
         catch (Exception ex)
@@ -62,6 +74,20 @@ public sealed partial class MainWindow : Window
     private async void OnSwitchConnectionClicked(object? sender, RoutedEventArgs e)
     {
         await ShowConnectionSelectionAsync(forceSelection: false);
+    }
+
+    private async void OnSettingsClicked(object? sender, RoutedEventArgs e)
+    {
+        var dialog = new SettingsDialog(_settings);
+        var result = await dialog.ShowDialog<SettingsDialogResult?>(this);
+        if (result is null)
+        {
+            return;
+        }
+
+        _settings.DefaultRunCount = result.DefaultRunCount;
+        await _appDataStore.SaveSettingsAsync(_settings);
+        SetStatus($"Settings saved. Default run query count is {_settings.DefaultRunCount}.");
     }
 
     private async void OnFlowSelectionChanged(object? sender, SelectionChangedEventArgs e)
@@ -212,8 +238,6 @@ public sealed partial class MainWindow : Window
             _powerAutomateAuthService = new PowerAutomateAuthService(_appDataStore.GetPowerAutomateTokenCachePath(connection.Id));
 
             ConnectionTextBlock.Text = $"{connection.Name} - {connection.EnvironmentUrl}";
-            _settings.LastConnectionId = connection.Id;
-            _settings.LastEnvironmentUrl = connection.EnvironmentUrl;
             await _appDataStore.SaveSettingsAsync(_settings, cancellationToken);
 
             _flows.Clear();
@@ -230,6 +254,7 @@ public sealed partial class MainWindow : Window
                 _environmentUrl,
                 ShowDeviceCodePrompt,
                 cancellationToken);
+            ClearDeviceCodePrompt();
 
             _client?.Dispose();
             _client = new DataverseClient(_environmentUrl, token.AccessToken);
@@ -260,7 +285,7 @@ public sealed partial class MainWindow : Window
             _flows.Add(flow);
         }
 
-        SetStatus($"Loaded {_flows.Count} cloud flows. Pick a flow to load the latest 50 runs.");
+        SetStatus($"Loaded {_flows.Count} cloud flows. Pick a flow to load the latest {_settings.DefaultRunCount} runs.");
     }
 
     private async Task LoadSelectedFlowRunsAsync()
@@ -276,7 +301,7 @@ public sealed partial class MainWindow : Window
             _runs.Clear();
             ResetRunColumns();
             ResetTriggerColumnOptions(clearKnownKeys: true);
-            SetStatus($"Loading latest 50 runs for {flow.Name}...");
+            SetStatus($"Loading latest {_settings.DefaultRunCount} runs for {flow.Name}...");
 
             if (_powerAutomateAuthService is null)
             {
@@ -286,6 +311,7 @@ public sealed partial class MainWindow : Window
             var paToken = await _powerAutomateAuthService.GetTokenAsync(
                 ShowDeviceCodePrompt,
                 cancellationToken);
+            ClearDeviceCodePrompt();
 
             using var paClient = new PowerAutomateClient(paToken.AccessToken);
             var environmentId = await paClient.DetectEnvironmentIdAsync(_environmentUrl, cancellationToken);
@@ -298,7 +324,7 @@ public sealed partial class MainWindow : Window
             var runs = await paClient.GetLatestRunsFromPowerPlatformApiAsync(
                 environmentId,
                 flow.WorkflowId,
-                50,
+                _settings.DefaultRunCount,
                 cancellationToken);
 
             var triggerKeys = new SortedSet<string>(AttributeNameComparer.Instance);
@@ -341,6 +367,7 @@ public sealed partial class MainWindow : Window
             var paToken = await _powerAutomateAuthService.GetTokenAsync(
                 ShowDeviceCodePrompt,
                 cancellationToken);
+            ClearDeviceCodePrompt();
 
             using var paClient = new PowerAutomateClient(paToken.AccessToken);
             var environmentId = await paClient.DetectEnvironmentIdAsync(_environmentUrl, cancellationToken);
@@ -509,6 +536,7 @@ public sealed partial class MainWindow : Window
     {
         NewConnectionButton.IsEnabled = false;
         SwitchConnectionButton.IsEnabled = false;
+        SettingsButton.IsEnabled = false;
         RefreshRunsButton.IsEnabled = false;
         AdvancedSearchButton.IsEnabled = false;
         BeginBusy();
@@ -527,6 +555,7 @@ public sealed partial class MainWindow : Window
             EndBusy();
             NewConnectionButton.IsEnabled = true;
             SwitchConnectionButton.IsEnabled = true;
+            SettingsButton.IsEnabled = true;
             RefreshRunsButton.IsEnabled = _client is not null && FlowComboBox.SelectedItem is CloudFlow;
             AdvancedSearchButton.IsEnabled = _triggerColumnOptions.Count > 0;
         }
@@ -543,6 +572,24 @@ public sealed partial class MainWindow : Window
             DeviceCodeTextBlock.Text = prompt.UserCode;
             DeviceCodePanel.IsVisible = true;
         });
+    }
+
+    private void ClearDeviceCodePrompt()
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            _deviceVerificationUrl = null;
+            _deviceUserCode = null;
+            DeviceCodeMessageTextBlock.Text = string.Empty;
+            DeviceCodeUrlTextBlock.Text = string.Empty;
+            DeviceCodeTextBlock.Text = string.Empty;
+            DeviceCodePanel.IsVisible = false;
+        });
+    }
+
+    private void NormalizeSettings()
+    {
+        _settings.DefaultRunCount = Math.Clamp(_settings.DefaultRunCount, 1, 100);
     }
 
     private void SetStatus(string message)
