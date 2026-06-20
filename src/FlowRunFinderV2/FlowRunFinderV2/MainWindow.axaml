@@ -5,6 +5,7 @@
         Icon="/Assets/FlowRunFinderV2.ico"
         Width="1120"
         Height="760"
+        WindowState="Maximized"
         MinWidth="860"
         MinHeight="560">
   <Grid>
@@ -21,7 +22,7 @@
       </Grid>
 
       <Grid Grid.Row="1" RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
-        <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
+        <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="10">
         <TextBlock Text="Flow" VerticalAlignment="Center" />
         <ComboBox x:Name="FlowComboBox"
                   Grid.Column="1"
@@ -37,6 +38,11 @@
                 Content="Trigger Columns"
                 IsEnabled="False"
                 Click="OnTriggerColumnsClicked" />
+        <Button x:Name="AdvancedSearchButton"
+                Grid.Column="4"
+                Content="Advanced Search"
+                IsEnabled="False"
+                Click="OnAdvancedSearchClicked" />
         <Popup x:Name="TriggerColumnsPopup"
                Grid.Column="3"
                PlacementTarget="{Binding ElementName=TriggerColumnsButton}"

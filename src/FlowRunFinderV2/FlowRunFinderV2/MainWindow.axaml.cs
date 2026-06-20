@@ -20,6 +20,7 @@ public sealed partial class MainWindow : Window
     private readonly ObservableCollection<CloudFlow> _flows = new();
     private readonly ObservableCollection<FlowRun> _runs = new();
     private readonly ObservableCollection<TriggerColumnOption> _triggerColumnOptions = new();
+    private readonly SortedSet<string> _knownTriggerKeys = new(StringComparer.OrdinalIgnoreCase);
     private AppSettings _settings = new();
     private DataverseClient? _client;
     private Uri? _environmentUrl;
@@ -89,6 +90,23 @@ public sealed partial class MainWindow : Window
         await LoadSelectedFlowRunsAsync();
     }
 
+    private async void OnAdvancedSearchClicked(object? sender, RoutedEventArgs e)
+    {
+        if (FlowComboBox.SelectedItem is not CloudFlow flow)
+        {
+            return;
+        }
+
+        var dialog = new AdvancedSearchDialog(_knownTriggerKeys);
+        var request = await dialog.ShowDialog<AdvancedSearchRequest?>(this);
+        if (request is null)
+        {
+            return;
+        }
+
+        await RunAdvancedSearchAsync(flow, request);
+    }
+
     private void OnTriggerColumnsClicked(object? sender, RoutedEventArgs e)
     {
         TriggerColumnsPopup.IsOpen = !TriggerColumnsPopup.IsOpen;
@@ -132,9 +150,10 @@ public sealed partial class MainWindow : Window
         _flows.Clear();
         _runs.Clear();
         ResetRunColumns();
-        ResetTriggerColumnOptions();
+        ResetTriggerColumnOptions(clearKnownKeys: true);
         FlowComboBox.SelectedItem = null;
         RefreshRunsButton.IsEnabled = false;
+        AdvancedSearchButton.IsEnabled = false;
 
         var flows = await _client.GetCloudFlowsAsync(cancellationToken);
         foreach (var flow in flows)
@@ -157,7 +176,7 @@ public sealed partial class MainWindow : Window
             RefreshRunsButton.IsEnabled = false;
             _runs.Clear();
             ResetRunColumns();
-            ResetTriggerColumnOptions();
+            ResetTriggerColumnOptions(clearKnownKeys: true);
             SetStatus($"Loading latest 50 runs for {flow.Name}...");
 
             var paToken = await _powerAutomateAuthService.GetTokenAsync(
@@ -196,6 +215,64 @@ public sealed partial class MainWindow : Window
         });
     }
 
+    private async Task RunAdvancedSearchAsync(CloudFlow flow, AdvancedSearchRequest request)
+    {
+        await RunUiActionAsync(async cancellationToken =>
+        {
+            if (_environmentUrl is null)
+            {
+                return;
+            }
+
+            _runs.Clear();
+            ResetRunColumns();
+            ResetTriggerColumnOptions(clearKnownKeys: false);
+            SetStatus($"Searching runs for {flow.Name}...");
+
+            var paToken = await _powerAutomateAuthService.GetTokenAsync(
+                ShowDeviceCodePrompt,
+                cancellationToken);
+
+            using var paClient = new PowerAutomateClient(paToken.AccessToken);
+            var environmentId = await paClient.DetectEnvironmentIdAsync(_environmentUrl, cancellationToken);
+            if (string.IsNullOrWhiteSpace(environmentId))
+            {
+                SetStatus("Could not detect the matching Power Automate environment id.");
+                return;
+            }
+
+            var runs = await paClient.SearchRunsFromPowerPlatformApiAsync(
+                environmentId,
+                flow.WorkflowId,
+                request.StartUtc,
+                request.EndUtc,
+                request.Criteria,
+                cancellationToken);
+
+            var triggerKeys = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var run in runs)
+            {
+                _runs.Add(run);
+                foreach (var triggerKey in run.TriggerInputs.Keys)
+                {
+                    triggerKeys.Add(triggerKey);
+                }
+            }
+
+            if (triggerKeys.Count > 0)
+            {
+                SetTriggerColumnOptions(flow, triggerKeys);
+            }
+            else
+            {
+                RestoreTriggerColumnOptions(flow);
+            }
+
+            RefreshRunsButton.IsEnabled = true;
+            SetStatus($"Found {_runs.Count} runs for {flow.Name}.");
+        });
+    }
+
     private void ResetRunColumns()
     {
         while (RunsDataGrid.Columns.Count > FixedRunColumnCount)
@@ -204,14 +281,31 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void ResetTriggerColumnOptions()
+    private void ResetTriggerColumnOptions(bool clearKnownKeys)
     {
         _triggerColumnOptions.Clear();
+        if (clearKnownKeys)
+        {
+            _knownTriggerKeys.Clear();
+        }
+
         TriggerColumnsButton.IsEnabled = false;
+        AdvancedSearchButton.IsEnabled = _knownTriggerKeys.Count > 0;
         TriggerColumnsPopup.IsOpen = false;
     }
 
     private void SetTriggerColumnOptions(CloudFlow flow, IEnumerable<string> triggerKeys)
+    {
+        _triggerColumnOptions.Clear();
+        foreach (var triggerKey in triggerKeys)
+        {
+            _knownTriggerKeys.Add(triggerKey);
+        }
+
+        RestoreTriggerColumnOptions(flow);
+    }
+
+    private void RestoreTriggerColumnOptions(CloudFlow flow)
     {
         _triggerColumnOptions.Clear();
         var flowId = flow.WorkflowId.ToString("D");
@@ -219,7 +313,7 @@ public sealed partial class MainWindow : Window
             ? new HashSet<string>(cachedColumns, StringComparer.OrdinalIgnoreCase)
             : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var key in triggerKeys)
+        foreach (var key in _knownTriggerKeys.OrderBy(key => key, StringComparer.OrdinalIgnoreCase))
         {
             _triggerColumnOptions.Add(new TriggerColumnOption(key)
             {
@@ -228,6 +322,7 @@ public sealed partial class MainWindow : Window
         }
 
         TriggerColumnsButton.IsEnabled = _triggerColumnOptions.Count > 0;
+        AdvancedSearchButton.IsEnabled = _triggerColumnOptions.Count > 0;
         AddTriggerColumns(_triggerColumnOptions
             .Where(option => option.IsSelected)
             .Select(option => option.Name));
@@ -289,6 +384,7 @@ public sealed partial class MainWindow : Window
     {
         ConnectButton.IsEnabled = false;
         RefreshRunsButton.IsEnabled = false;
+        AdvancedSearchButton.IsEnabled = false;
         BeginBusy();
 
         try
@@ -305,6 +401,7 @@ public sealed partial class MainWindow : Window
             EndBusy();
             ConnectButton.IsEnabled = true;
             RefreshRunsButton.IsEnabled = _client is not null && FlowComboBox.SelectedItem is CloudFlow;
+            AdvancedSearchButton.IsEnabled = _triggerColumnOptions.Count > 0;
         }
     }
 

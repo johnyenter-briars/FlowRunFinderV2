@@ -7,6 +7,7 @@ namespace FlowRunFinderV2.Services;
 public sealed class PowerAutomateClient : IDisposable
 {
     private const string ApiVersion = "2016-11-01";
+    private const int AdvancedSearchRunLimit = 1000;
     private readonly HttpClient _httpClient = new();
     private readonly HttpClient _sasHttpClient = new();
 
@@ -69,27 +70,94 @@ public sealed class PowerAutomateClient : IDisposable
 
         foreach (var run in runs.EnumerateArray().Take(top))
         {
-            var properties = run.TryGetProperty("properties", out var props)
-                ? props
-                : default;
-
-            var flowRun = new FlowRun
-            {
-                RunId = run.GetStringOrDefault("id") ?? run.GetStringOrDefault("name"),
-                Name = run.GetStringOrDefault("name"),
-                Status = properties.GetStringOrDefault("status") ?? run.GetStringOrDefault("status"),
-                StartedOn = properties.GetDateTimeOffsetOrDefault("startTime") ??
-                            properties.GetDateTimeOffsetOrDefault("starttime"),
-                EndedOn = properties.GetDateTimeOffsetOrDefault("endTime") ??
-                          properties.GetDateTimeOffsetOrDefault("endtime")
-            };
-
-            await LoadTriggerOutputsFromRunContentAsync(environmentId, baseUrl, run, flowRun, cancellationToken)
+            var flowRun = await CreateFlowRunAsync(environmentId, baseUrl, run, cancellationToken)
                 .ConfigureAwait(false);
             result.Add(flowRun);
         }
 
         return result;
+    }
+
+    public async Task<IReadOnlyList<FlowRun>> SearchRunsFromPowerPlatformApiAsync(
+        string environmentId,
+        Guid flowId,
+        DateTimeOffset startUtc,
+        DateTimeOffset endUtc,
+        IReadOnlyDictionary<string, string> criteria,
+        CancellationToken cancellationToken)
+    {
+        var baseUrl = BuildPowerPlatformFlowBaseUrl(environmentId, flowId);
+        var nextUrl = $"{baseUrl}/runs?api-version=1";
+        var result = new List<FlowRun>();
+        var inspected = 0;
+
+        while (!string.IsNullOrWhiteSpace(nextUrl) && inspected < AdvancedSearchRunLimit)
+        {
+            using var document = await GetJsonAsync(nextUrl, cancellationToken).ConfigureAwait(false);
+            if (!document.RootElement.TryGetProperty("value", out var runs))
+            {
+                break;
+            }
+
+            foreach (var run in runs.EnumerateArray())
+            {
+                inspected++;
+                if (inspected > AdvancedSearchRunLimit)
+                {
+                    break;
+                }
+
+                var flowRun = await CreateFlowRunAsync(environmentId, baseUrl, run, cancellationToken)
+                    .ConfigureAwait(false);
+
+                if (flowRun.StartedOn is null)
+                {
+                    continue;
+                }
+
+                var startedUtc = flowRun.StartedOn.Value.ToUniversalTime();
+                if (startedUtc < startUtc || startedUtc > endUtc)
+                {
+                    continue;
+                }
+
+                if (MatchesCriteria(flowRun, criteria))
+                {
+                    result.Add(flowRun);
+                }
+            }
+
+            nextUrl = GetNextLink(document.RootElement);
+        }
+
+        return result;
+    }
+
+    private async Task<FlowRun> CreateFlowRunAsync(
+        string environmentId,
+        string baseUrl,
+        JsonElement run,
+        CancellationToken cancellationToken)
+    {
+        var properties = run.TryGetProperty("properties", out var props)
+            ? props
+            : default;
+
+        var flowRun = new FlowRun
+        {
+            RunId = run.GetStringOrDefault("id") ?? run.GetStringOrDefault("name"),
+            Name = run.GetStringOrDefault("name"),
+            Status = properties.GetStringOrDefault("status") ?? run.GetStringOrDefault("status"),
+            StartedOn = properties.GetDateTimeOffsetOrDefault("startTime") ??
+                        properties.GetDateTimeOffsetOrDefault("starttime"),
+            EndedOn = properties.GetDateTimeOffsetOrDefault("endTime") ??
+                      properties.GetDateTimeOffsetOrDefault("endtime")
+        };
+
+        await LoadTriggerOutputsFromRunContentAsync(environmentId, baseUrl, run, flowRun, cancellationToken)
+            .ConfigureAwait(false);
+
+        return flowRun;
     }
 
     private async Task<JsonDocument> GetJsonAsync(string url, CancellationToken cancellationToken)
@@ -103,6 +171,31 @@ public sealed class PowerAutomateClient : IDisposable
         }
 
         return JsonDocument.Parse(body);
+    }
+
+    private static string? GetNextLink(JsonElement root)
+    {
+        return root.GetStringOrDefault("nextLink") ??
+               root.GetStringOrDefault("@odata.nextLink") ??
+               root.GetStringOrDefault("nextPageLink");
+    }
+
+    private static bool MatchesCriteria(FlowRun run, IReadOnlyDictionary<string, string> criteria)
+    {
+        foreach (var criterion in criteria)
+        {
+            if (!run.TriggerInputs.TryGetValue(criterion.Key, out var actualValue))
+            {
+                return false;
+            }
+
+            if (!string.Equals(actualValue, criterion.Value, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static string BuildPowerPlatformFlowBaseUrl(string environmentId, Guid flowId)
