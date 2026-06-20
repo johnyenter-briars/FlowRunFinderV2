@@ -8,4 +8,5 @@ public sealed class FlowRun
     public DateTimeOffset? StartedOn { get; init; }
     public DateTimeOffset? EndedOn { get; init; }
     public string? Duration { get; init; }
+    public Dictionary<string, string> TriggerInputs { get; } = new(StringComparer.OrdinalIgnoreCase);
 }

@@ -6,8 +6,9 @@
         Height="760"
         MinWidth="860"
         MinHeight="560">
-  <Grid RowDefinitions="Auto,Auto,*" Margin="18" RowSpacing="14">
-    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+  <Grid>
+    <Grid RowDefinitions="Auto,Auto,*" Margin="18" RowSpacing="14">
+      <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
       <TextBlock Text="Environment URL" VerticalAlignment="Center" />
       <TextBox x:Name="EnvironmentUrlTextBox"
                Grid.Column="1"
@@ -16,10 +17,10 @@
               Grid.Column="2"
               Content="Connect"
               Click="OnConnectClicked" />
-    </Grid>
+      </Grid>
 
-    <Grid Grid.Row="1" RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
-      <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+      <Grid Grid.Row="1" RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
+        <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
         <TextBlock Text="Flow" VerticalAlignment="Center" />
         <ComboBox x:Name="FlowComboBox"
                   Grid.Column="1"
@@ -30,9 +31,46 @@
                 Content="Refresh Runs"
                 IsEnabled="False"
                 Click="OnRefreshRunsClicked" />
-      </Grid>
+        <Button x:Name="TriggerColumnsButton"
+                Grid.Column="3"
+                Content="Trigger Columns"
+                IsEnabled="False"
+                Click="OnTriggerColumnsClicked" />
+        <Popup x:Name="TriggerColumnsPopup"
+               Grid.Column="3"
+               PlacementTarget="{Binding ElementName=TriggerColumnsButton}"
+               Placement="Bottom"
+               IsLightDismissEnabled="True">
+          <Border Width="320"
+                  MaxHeight="380"
+                  Padding="10"
+                  CornerRadius="6"
+                  Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                  BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                  BorderThickness="1">
+            <Grid RowDefinitions="Auto,*" RowSpacing="8">
+              <TextBlock Text="Trigger input columns"
+                         FontWeight="SemiBold" />
+              <ScrollViewer Grid.Row="1"
+                            VerticalScrollBarVisibility="Auto"
+                            HorizontalScrollBarVisibility="Disabled">
+                <ItemsControl x:Name="TriggerColumnsItemsControl">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <CheckBox Content="{Binding Name}"
+                                IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                Checked="OnTriggerColumnSelectionChanged"
+                                Unchecked="OnTriggerColumnSelectionChanged" />
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </ScrollViewer>
+            </Grid>
+          </Border>
+        </Popup>
+        </Grid>
 
-      <Border Grid.Row="1"
+        <Border Grid.Row="1"
               BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
               BorderThickness="1"
               Padding="10"
@@ -79,14 +117,14 @@
             <PathIcon Data="M8,2 L18,2 L18,14 L8,14 Z M5,6 L5,18 L15,18 L15,16 L7,16 L7,6 Z" />
           </Button>
         </Grid>
-      </Border>
+        </Border>
 
-      <TextBlock x:Name="StatusTextBlock"
+        <TextBlock x:Name="StatusTextBlock"
                  Grid.Row="2"
                  Text="Not connected." />
-    </Grid>
+      </Grid>
 
-    <DataGrid x:Name="RunsDataGrid"
+      <DataGrid x:Name="RunsDataGrid"
               Grid.Row="2"
               AutoGenerateColumns="False"
               IsReadOnly="True"
@@ -100,6 +138,28 @@
         <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*" />
         <DataGridTextColumn Header="Duration" Binding="{Binding Duration}" Width="140" />
       </DataGrid.Columns>
-    </DataGrid>
+      </DataGrid>
+    </Grid>
+
+    <Border x:Name="BusyOverlay"
+            HorizontalAlignment="Right"
+            VerticalAlignment="Bottom"
+            Margin="18"
+            Padding="12"
+            CornerRadius="6"
+            Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+            BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+            BorderThickness="1"
+            IsVisible="False">
+      <StackPanel Orientation="Horizontal" Spacing="10">
+        <ProgressBar Width="86"
+                     Height="6"
+                     IsIndeterminate="True"
+                     VerticalAlignment="Center" />
+        <TextBlock x:Name="BusyTextBlock"
+                   Text="Working..."
+                   VerticalAlignment="Center" />
+      </StackPanel>
+    </Border>
   </Grid>
 </Window>

@@ -44,4 +44,5 @@ public sealed class AppDataStore
 public sealed class AppSettings
 {
     public string? LastEnvironmentUrl { get; set; }
+    public Dictionary<string, List<string>> SelectedTriggerColumnsByFlowId { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }

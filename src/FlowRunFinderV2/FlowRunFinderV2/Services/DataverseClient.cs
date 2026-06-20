@@ -48,61 +48,6 @@ public sealed class DataverseClient : IDisposable
         return flows;
     }
 
-    public async Task<IReadOnlyList<FlowRun>> GetLatestRunsAsync(Guid workflowId, CancellationToken cancellationToken)
-    {
-        var entitySetName = await ResolveEntitySetNameAsync("flowrun", "flowruns", cancellationToken).ConfigureAwait(false);
-        var filter = Uri.EscapeDataString($"workflowid eq {workflowId}");
-        var select = Uri.EscapeDataString("flowrunid,name,status,starttime,endtime,duration");
-        var query = $"{entitySetName}?$select={select}&$filter={filter}&$orderby=starttime desc&$top=50";
-
-        try
-        {
-            return await ReadRunsAsync(query, cancellationToken).ConfigureAwait(false);
-        }
-        catch (HttpRequestException) when (entitySetName != "flowruns")
-        {
-            var fallbackQuery = $"flowruns?$select={select}&$filter={filter}&$orderby=starttime desc&$top=50";
-            return await ReadRunsAsync(fallbackQuery, cancellationToken).ConfigureAwait(false);
-        }
-    }
-
-    private async Task<IReadOnlyList<FlowRun>> ReadRunsAsync(string query, CancellationToken cancellationToken)
-    {
-        using var document = await GetJsonAsync(query, cancellationToken).ConfigureAwait(false);
-        var rows = document.RootElement.GetProperty("value");
-        var runs = new List<FlowRun>();
-
-        foreach (var row in rows.EnumerateArray())
-        {
-            runs.Add(new FlowRun
-            {
-                RunId = row.GetStringOrDefault("flowrunid"),
-                Name = row.GetStringOrDefault("name"),
-                Status = row.GetStringOrDefault("status"),
-                StartedOn = row.GetDateTimeOffsetOrDefault("starttime"),
-                EndedOn = row.GetDateTimeOffsetOrDefault("endtime"),
-                Duration = row.GetStringOrDefault("duration")
-            });
-        }
-
-        return runs;
-    }
-
-    private async Task<string> ResolveEntitySetNameAsync(string logicalName, string fallback, CancellationToken cancellationToken)
-    {
-        var query = $"EntityDefinitions(LogicalName='{logicalName}')?$select=EntitySetName";
-
-        try
-        {
-            using var document = await GetJsonAsync(query, cancellationToken).ConfigureAwait(false);
-            return document.RootElement.GetStringOrDefault("EntitySetName") ?? fallback;
-        }
-        catch (HttpRequestException)
-        {
-            return fallback;
-        }
-    }
-
     private async Task<JsonDocument> GetJsonAsync(string relativeQuery, CancellationToken cancellationToken)
     {
         using var response = await _httpClient.GetAsync(new Uri(_baseApiUri, relativeQuery), cancellationToken).ConfigureAwait(false);
@@ -126,7 +71,9 @@ internal static class JsonElementExtensions
 {
     public static string? GetStringOrDefault(this JsonElement element, string propertyName)
     {
-        if (!element.TryGetProperty(propertyName, out var property) || property.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
+        if (element.ValueKind != JsonValueKind.Object ||
+            !element.TryGetProperty(propertyName, out var property) ||
+            property.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
         {
             return null;
         }
