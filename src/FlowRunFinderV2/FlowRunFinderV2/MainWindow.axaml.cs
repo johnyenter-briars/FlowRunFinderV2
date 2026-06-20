@@ -20,7 +20,8 @@ public sealed partial class MainWindow : Window
     private readonly ObservableCollection<CloudFlow> _flows = new();
     private readonly ObservableCollection<FlowRun> _runs = new();
     private readonly ObservableCollection<TriggerColumnOption> _triggerColumnOptions = new();
-    private readonly SortedSet<string> _knownTriggerKeys = new(StringComparer.OrdinalIgnoreCase);
+    private readonly SortedSet<string> _knownTriggerKeys = new(AttributeNameComparer.Instance);
+    private readonly Dictionary<Guid, AdvancedSearchState> _advancedSearchStateByFlowId = new();
     private AppSettings _settings = new();
     private DataverseClient? _client;
     private Uri? _environmentUrl;
@@ -97,13 +98,15 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        var dialog = new AdvancedSearchDialog(_knownTriggerKeys);
+        _advancedSearchStateByFlowId.TryGetValue(flow.WorkflowId, out var initialState);
+        var dialog = new AdvancedSearchDialog(_knownTriggerKeys, initialState);
         var request = await dialog.ShowDialog<AdvancedSearchRequest?>(this);
         if (request is null)
         {
             return;
         }
 
+        CacheAdvancedSearchState(flow.WorkflowId, request);
         await RunAdvancedSearchAsync(flow, request);
     }
 
@@ -197,7 +200,7 @@ public sealed partial class MainWindow : Window
                 50,
                 cancellationToken);
 
-            var triggerKeys = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+            var triggerKeys = new SortedSet<string>(AttributeNameComparer.Instance);
             foreach (var run in runs)
             {
                 _runs.Add(run);
@@ -249,7 +252,7 @@ public sealed partial class MainWindow : Window
                 request.Criteria,
                 cancellationToken);
 
-            var triggerKeys = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+            var triggerKeys = new SortedSet<string>(AttributeNameComparer.Instance);
             foreach (var run in runs)
             {
                 _runs.Add(run);
@@ -271,6 +274,22 @@ public sealed partial class MainWindow : Window
             RefreshRunsButton.IsEnabled = true;
             SetStatus($"Found {_runs.Count} runs for {flow.Name}.");
         });
+    }
+
+    private void CacheAdvancedSearchState(Guid workflowId, AdvancedSearchRequest request)
+    {
+        var state = new AdvancedSearchState
+        {
+            StartUtc = request.StartUtc,
+            EndUtc = request.EndUtc
+        };
+
+        foreach (var criterion in request.Criteria)
+        {
+            state.Criteria[criterion.Key] = criterion.Value;
+        }
+
+        _advancedSearchStateByFlowId[workflowId] = state;
     }
 
     private void ResetRunColumns()
@@ -313,7 +332,7 @@ public sealed partial class MainWindow : Window
             ? new HashSet<string>(cachedColumns, StringComparer.OrdinalIgnoreCase)
             : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var key in _knownTriggerKeys.OrderBy(key => key, StringComparer.OrdinalIgnoreCase))
+        foreach (var key in _knownTriggerKeys.OrderBy(key => key, AttributeNameComparer.Instance))
         {
             _triggerColumnOptions.Add(new TriggerColumnOption(key)
             {
@@ -494,4 +513,22 @@ public sealed class TriggerColumnOption
 
     public string Name { get; }
     public bool IsSelected { get; set; }
+}
+
+internal sealed class AttributeNameComparer : IComparer<string>
+{
+    public static readonly AttributeNameComparer Instance = new();
+
+    public int Compare(string? x, string? y)
+    {
+        var normalizedCompare = StringComparer.OrdinalIgnoreCase.Compare(Normalize(x), Normalize(y));
+        return normalizedCompare != 0
+            ? normalizedCompare
+            : StringComparer.OrdinalIgnoreCase.Compare(x, y);
+    }
+
+    private static string Normalize(string? value)
+    {
+        return (value ?? string.Empty).TrimStart('_');
+    }
 }

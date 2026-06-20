@@ -16,14 +16,33 @@ public sealed partial class AdvancedSearchDialog : Window
     private TextBox _endUtcTextBox = null!;
     private TextBlock _validationTextBlock = null!;
 
-    public AdvancedSearchDialog(IEnumerable<string> triggerFieldNames)
+    public AdvancedSearchDialog(
+        IEnumerable<string> triggerFieldNames,
+        AdvancedSearchState? initialState = null)
     {
         InitializeComponent();
 
         _fields = new ObservableCollection<AdvancedSearchField>(
             triggerFieldNames
-                .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+                .OrderBy(name => name, AttributeNameComparer.Instance)
                 .Select(name => new AdvancedSearchField(name)));
+
+        if (initialState is not null)
+        {
+            _startUtcTextBox.Text = initialState.StartUtc?.ToString("O", CultureInfo.InvariantCulture);
+            _endUtcTextBox.Text = initialState.EndUtc?.ToString("O", CultureInfo.InvariantCulture);
+
+            foreach (var field in _fields)
+            {
+                if (initialState.Criteria.TryGetValue(field.Name, out var value))
+                {
+                    field.IsSelected = true;
+                    field.Value = value;
+                }
+            }
+
+            RebuildSelectedFields();
+        }
 
         _fieldsItemsControl.ItemsSource = _fields;
         _criteriaItemsControl.ItemsSource = _selectedFields;
@@ -148,3 +167,10 @@ public sealed record AdvancedSearchRequest(
     DateTimeOffset StartUtc,
     DateTimeOffset EndUtc,
     IReadOnlyDictionary<string, string> Criteria);
+
+public sealed class AdvancedSearchState
+{
+    public DateTimeOffset? StartUtc { get; set; }
+    public DateTimeOffset? EndUtc { get; set; }
+    public Dictionary<string, string> Criteria { get; } = new(StringComparer.OrdinalIgnoreCase);
+}
