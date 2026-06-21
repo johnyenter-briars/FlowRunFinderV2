@@ -4,7 +4,7 @@
 
 # Flow Run Finder V2
 
-Flow Run Finder V2 is a standalone desktop tool for finding Power Automate flow runs and inspecting the trigger data that started them.
+Flow Run Finder V2 is a desktop tool for finding Power Automate flow runs and inspecting the related trigger data.
 
 It is useful when you know a flow ran, but need to answer questions like:
 
@@ -85,6 +85,14 @@ Notable files and folders:
 - `settings.json`: app settings and selected trigger columns
 - `connections`: saved connection profiles and token caches
 - `logs`: daily log files
+
+## Publish
+
+```powershell
+dotnet publish .\src\FlowRunFinderV2\FlowRunFinderV2\FlowRunFinderV2.csproj /p:PublishProfile=FolderProfile
+```
+
+The executable is written to `src\FlowRunFinderV2\FlowRunFinderV2\bin\Release\net8.0\win-x64\publish`.
 
 ## AI Disclosure
 - AI-assisted tooling was used in the development of this codebase.
