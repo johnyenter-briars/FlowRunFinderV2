@@ -9,7 +9,7 @@ public sealed class DataverseAuthService
 
     private readonly IPublicClientApplication _app;
 
-    public DataverseAuthService()
+    public DataverseAuthService(string? tokenCachePath = null)
     {
         _app = PublicClientApplicationBuilder
             .Create(DefaultClientId)
@@ -17,7 +17,14 @@ public sealed class DataverseAuthService
             .WithDefaultRedirectUri()
             .Build();
 
-        TokenCacheProvider.Register(_app.UserTokenCache);
+        if (string.IsNullOrWhiteSpace(tokenCachePath))
+        {
+            TokenCacheProvider.Register(_app.UserTokenCache);
+        }
+        else
+        {
+            TokenCacheProvider.RegisterPath(_app.UserTokenCache, tokenCachePath);
+        }
     }
 
     public async Task<AuthResult> GetTokenAsync(

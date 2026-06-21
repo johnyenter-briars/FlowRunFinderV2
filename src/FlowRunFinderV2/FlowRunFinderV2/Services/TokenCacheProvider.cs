@@ -20,7 +20,12 @@ internal static class TokenCacheProvider
     public static void Register(ITokenCache tokenCache, string fileName = "msal_cache.bin3")
     {
         var cachePath = GetCachePath(fileName);
+        RegisterPath(tokenCache, cachePath);
+    }
 
+    public static void RegisterPath(ITokenCache tokenCache, string cachePath)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(cachePath)!);
         tokenCache.SetBeforeAccess(args =>
         {
             lock (CacheLock)
