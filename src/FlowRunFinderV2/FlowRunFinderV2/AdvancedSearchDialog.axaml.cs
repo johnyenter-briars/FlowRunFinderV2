@@ -112,9 +112,10 @@ public sealed partial class AdvancedSearchDialog : Window
     {
         var border = new Border
         {
-            Padding = new Thickness(10),
+            Padding = new Thickness(12),
             Margin = new Thickness(depth == 0 ? 0 : 18, depth == 0 ? 0 : 8, 0, 8),
-            BorderBrush = Brushes.Gray,
+            Background = GetBrush("AppPanelAltBrush", "#23272E"),
+            BorderBrush = GetBrush("AppBorderBrush", "#343A44"),
             BorderThickness = new Thickness(1)
         };
 
@@ -288,10 +289,10 @@ public sealed partial class AdvancedSearchDialog : Window
         {
             Width = 320,
             MaxHeight = 360,
-            Padding = new Thickness(10),
-            CornerRadius = new CornerRadius(6),
-            Background = Brushes.Black,
-            BorderBrush = Brushes.Gray,
+            Padding = new Thickness(12),
+            CornerRadius = new CornerRadius(8),
+            Background = GetBrush("AppPanelAltBrush", "#23272E"),
+            BorderBrush = GetBrush("AppBorderBrush", "#343A44"),
             BorderThickness = new Thickness(1),
             Child = new Grid
             {
@@ -439,6 +440,12 @@ public sealed partial class AdvancedSearchDialog : Window
 
         value = parsed.ToUniversalTime();
         return true;
+    }
+
+    private static IBrush GetBrush(string resourceKey, string fallbackColor)
+    {
+        _ = resourceKey;
+        return SolidColorBrush.Parse(fallbackColor);
     }
 }
 

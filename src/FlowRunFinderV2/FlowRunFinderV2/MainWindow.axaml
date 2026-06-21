@@ -7,16 +7,24 @@
         WindowState="Maximized"
         MinWidth="860"
         MinHeight="560">
-  <Grid>
-    <Grid RowDefinitions="Auto,Auto,*" Margin="18" RowSpacing="14">
+  <Grid Background="{DynamicResource AppBackgroundBrush}">
+    <Grid RowDefinitions="Auto,Auto,*" Margin="20" RowSpacing="16">
+      <Border Padding="14"
+              CornerRadius="8"
+              Background="{DynamicResource AppPanelBrush}"
+              BorderBrush="{DynamicResource AppBorderBrush}"
+              BorderThickness="1">
       <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="10">
-      <TextBlock Text="Connection" VerticalAlignment="Center" />
+      <TextBlock Text="Connection"
+                 Foreground="{DynamicResource AppMutedTextBrush}"
+                 VerticalAlignment="Center" />
       <TextBlock x:Name="ConnectionTextBlock"
                  Grid.Column="1"
                  VerticalAlignment="Center"
                  Text="No connection selected." />
       <Button x:Name="NewConnectionButton"
               Grid.Column="2"
+              Classes="primary"
               Content="New"
               Click="OnNewConnectionClicked" />
       <Button x:Name="SwitchConnectionButton"
@@ -28,10 +36,18 @@
               Content="Settings"
               Click="OnSettingsClicked" />
       </Grid>
+      </Border>
 
       <Grid Grid.Row="1" RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
+        <Border Padding="14"
+                CornerRadius="8"
+                Background="{DynamicResource AppPanelBrush}"
+                BorderBrush="{DynamicResource AppBorderBrush}"
+                BorderThickness="1">
         <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="10">
-        <TextBlock Text="Flow" VerticalAlignment="Center" />
+        <TextBlock Text="Flow"
+                   Foreground="{DynamicResource AppMutedTextBrush}"
+                   VerticalAlignment="Center" />
         <Button x:Name="FlowPickerButton"
                 Grid.Column="1"
                 MinHeight="32"
@@ -44,12 +60,12 @@
                PlacementTarget="{Binding ElementName=FlowPickerButton}"
                Placement="Bottom"
                IsLightDismissEnabled="True">
-          <Border Width="{Binding Bounds.Width, ElementName=FlowPickerButton}"
+          <Border Width="620"
                   MaxHeight="420"
-                  Padding="10"
-                  CornerRadius="6"
-                  Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
-                  BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                  Padding="12"
+                  CornerRadius="8"
+                  Background="{DynamicResource AppPanelAltBrush}"
+                  BorderBrush="{DynamicResource AppBorderBrush}"
                   BorderThickness="1">
             <Grid RowDefinitions="Auto,*" RowSpacing="8">
               <TextBox x:Name="FlowSearchTextBox"
@@ -65,6 +81,7 @@
         <Button x:Name="RefreshRunsButton"
                 Grid.Column="2"
                 Content="Refresh Runs"
+                Classes="primary"
                 IsEnabled="False"
                 Click="OnRefreshRunsClicked" />
         <Button x:Name="TriggerColumnsButton"
@@ -84,10 +101,10 @@
                IsLightDismissEnabled="True">
           <Border Width="320"
                   MaxHeight="380"
-                  Padding="10"
-                  CornerRadius="6"
-                  Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
-                  BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                  Padding="12"
+                  CornerRadius="8"
+                  Background="{DynamicResource AppPanelAltBrush}"
+                  BorderBrush="{DynamicResource AppBorderBrush}"
                   BorderThickness="1">
             <Grid RowDefinitions="Auto,Auto,*" RowSpacing="8">
               <TextBlock Text="Trigger input columns"
@@ -114,11 +131,14 @@
           </Border>
         </Popup>
         </Grid>
+        </Border>
 
         <Border Grid.Row="1"
-              BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+              Background="{DynamicResource AppPanelBrush}"
+              BorderBrush="{DynamicResource AppBorderBrush}"
               BorderThickness="1"
-              Padding="10"
+              CornerRadius="8"
+              Padding="12"
               IsVisible="False"
               x:Name="DeviceCodePanel">
         <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10" RowSpacing="6">
@@ -136,9 +156,7 @@
           <Button x:Name="CopyDeviceUrlButton"
                   Grid.Row="1"
                   Grid.Column="2"
-                  Width="34"
-                  Height="30"
-                  Padding="7"
+                  Classes="icon"
                   ToolTip.Tip="Copy login URL"
                   Click="OnCopyDeviceUrlClicked">
             <PathIcon Data="M8,2 L18,2 L18,14 L8,14 Z M5,6 L5,18 L15,18 L15,16 L7,16 L7,6 Z" />
@@ -154,9 +172,7 @@
           <Button x:Name="CopyDeviceCodeButton"
                   Grid.Row="2"
                   Grid.Column="2"
-                  Width="34"
-                  Height="30"
-                  Padding="7"
+                  Classes="icon"
                   ToolTip.Tip="Copy device code"
                   Click="OnCopyDeviceCodeClicked">
             <PathIcon Data="M8,2 L18,2 L18,14 L8,14 Z M5,6 L5,18 L15,18 L15,16 L7,16 L7,6 Z" />
@@ -166,16 +182,22 @@
 
         <TextBlock x:Name="StatusTextBlock"
                  Grid.Row="2"
+                 Foreground="{DynamicResource AppMutedTextBrush}"
                  Text="Not connected." />
       </Grid>
 
+      <Border Grid.Row="2"
+              CornerRadius="8"
+              Background="{DynamicResource AppPanelBrush}"
+              BorderBrush="{DynamicResource AppBorderBrush}"
+              BorderThickness="1"
+              Padding="1">
       <DataGrid x:Name="RunsDataGrid"
-              Grid.Row="2"
-              AutoGenerateColumns="False"
-              IsReadOnly="True"
-              GridLinesVisibility="Horizontal"
-              HeadersVisibility="Column"
-              CanUserResizeColumns="True">
+                AutoGenerateColumns="False"
+                IsReadOnly="True"
+                GridLinesVisibility="Horizontal"
+                HeadersVisibility="Column"
+                CanUserResizeColumns="True">
       <DataGrid.Columns>
         <DataGridTextColumn Header="Started" Binding="{Binding StartedOn}" Width="Auto" />
         <DataGridTextColumn Header="Ended" Binding="{Binding EndedOn}" Width="Auto" />
@@ -193,6 +215,7 @@
         </DataGridTemplateColumn>
       </DataGrid.Columns>
       </DataGrid>
+      </Border>
     </Grid>
 
     <Border x:Name="BusyOverlay"
@@ -200,9 +223,9 @@
             VerticalAlignment="Bottom"
             Margin="18"
             Padding="12"
-            CornerRadius="6"
-            Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
-            BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+            CornerRadius="8"
+            Background="{DynamicResource AppPanelAltBrush}"
+            BorderBrush="{DynamicResource AppBorderBrush}"
             BorderThickness="1"
             IsVisible="False">
       <StackPanel Orientation="Horizontal" Spacing="10">
@@ -221,9 +244,9 @@
             VerticalAlignment="Bottom"
             Margin="18"
             Padding="12,8"
-            CornerRadius="6"
-            Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
-            BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+            CornerRadius="8"
+            Background="{DynamicResource AppPanelAltBrush}"
+            BorderBrush="{DynamicResource AppBorderBrush}"
             BorderThickness="1"
             IsVisible="False">
       <TextBlock x:Name="ToastTextBlock"
