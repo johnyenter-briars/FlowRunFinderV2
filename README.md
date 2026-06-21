@@ -1,37 +1,93 @@
-# FlowRunFinderV2
+<p align="center">
+  <img src="src/FlowRunFinderV2/FlowRunFinderV2/Assets/FlowRunFinderV2.svg" width="96" alt="Flow Run Finder V2 icon" />
+</p>
 
-Standalone .NET 8 Avalonia app for browsing Power Automate flow runs from a Dataverse/Dynamics 365 environment.
+# Flow Run Finder V2
 
-## Current behavior
+Flow Run Finder V2 is a standalone desktop tool for finding Power Automate flow runs and inspecting the trigger data that started them.
 
-- Pick an existing connection or create a new named connection.
-- Authenticate with device-code login.
-- Cache connection-specific MSAL tokens under `%LOCALAPPDATA%\FlowRunFinderV2\connections\{connection-guid}`.
-- Store app-level settings in `%LOCALAPPDATA%\FlowRunFinderV2\settings.json`.
-- Write daily logs to `%LOCALAPPDATA%\FlowRunFinderV2\logs`.
-- Load cloud flows from the `workflow` table.
-- Pick a flow and load the latest 10 runs from the Power Platform environment API by default.
-- Authenticate separately to Power Automate when needed.
-- Read trigger payloads from the run response and add dynamic trigger columns to the grid.
+It is useful when you know a flow ran, but need to answer questions like:
 
-## What I need from you
+- Which run handled this record?
+- What trigger payload did the flow receive?
+- Did any runs fire for this account, contact, row id, user id, status, or other trigger value?
+- What happened during a specific UTC time window?
+- Which trigger fields are worth comparing across recent runs?
 
-To run it, you will need:
+## Features
 
-- .NET 8 SDK.
-- Network access to NuGet.
-- Access to the target Dataverse environment.
-- Access to Power Automate for the same environment.
-- A public-client Azure app registration that allows delegated Dataverse access, or use the default client id currently in `DataverseAuthService`.
+- Named Dataverse/Power Platform connections with cached device-code auth.
+- Recent Power Automate run history loaded directly from the environment API.
+- Dynamic trigger-output columns, remembered per flow.
+- Searchable flow and trigger-field pickers.
+- Advanced UTC time-window search with grouped `AND` / `OR` filters.
+- `Equals` and `Contains` matching for trigger output fields.
+- Run links to make.powerautomate.com, plus right-click copy.
+- Local daily logs with configurable verbosity.
 
-Run:
+## Screenshots
 
-```powershell
-dotnet restore .\src\FlowRunFinderV2\FlowRunFinderV2.sln
-dotnet run --project .\src\FlowRunFinderV2\FlowRunFinderV2\FlowRunFinderV2.csproj
+![Flow runs](docs/screenshots/flow-runs.png)
+
+![Advanced search](docs/screenshots/advanced-search.png)
+
+## Setting Up A Connection
+
+When the app starts, choose an existing connection or create a new one.
+
+For a new connection, enter:
+
+- a friendly name, like `prod` or `uat`
+- the Dataverse environment URL, like `https://contoso.crm.dynamics.com`
+
+The app will show a Microsoft device login URL and code. Open the URL in your browser, enter the code, and finish signing in.
+
+Connection metadata and token caches are stored locally under:
+
+```text
+%LOCALAPPDATA%\FlowRunFinderV2\connections
 ```
 
-If your tenant blocks the default public client id, create an app registration with public client/device-code support and replace `DefaultClientId` in `src/FlowRunFinderV2/FlowRunFinderV2/Services/DataverseAuthService.cs`.
+## Using The Tool
 
-The default run query count can be changed from the in-app Settings dialog.
-Log verbosity can also be changed from Settings.
+After connecting, pick a cloud flow from the flow picker. The app loads the latest runs and shows the run start time, end time, status, and run id.
+
+Use `Trigger Columns` to choose which trigger output fields should appear in the grid. The list is based on the trigger payloads returned for the loaded runs, so it can include custom Dataverse columns and dynamic trigger values.
+
+Use `Advanced Search` when recent runs are not enough. Set a UTC start and end time, then add filters against trigger output fields. You can group filters with `AND` and `OR`, which is useful for searches like:
+
+```text
+accountid equals {GUID}
+AND
+statuscode equals 1
+```
+
+or:
+
+```text
+name contains test
+OR
+websiteurl contains contoso
+```
+
+Advanced search scans run history newest-to-oldest. It avoids loading trigger payloads until a run is inside the requested time window, which keeps older searches from doing unnecessary work.
+
+## Local Files
+
+The app keeps its local data here:
+
+```text
+%LOCALAPPDATA%\FlowRunFinderV2
+```
+
+Notable files and folders:
+
+- `settings.json`: app settings and selected trigger columns
+- `connections`: saved connection profiles and token caches
+- `logs`: daily log files
+
+## AI Disclosure
+- AI-assisted tooling was used in the development of this codebase.
+
+## License
+- License: [MIT](LICENSE)
