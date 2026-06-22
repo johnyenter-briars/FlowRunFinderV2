@@ -57,10 +57,22 @@ public sealed class AdvancedSearchCondition : AdvancedSearchFilterNode
     }
 }
 
-public sealed record AdvancedSearchRequest(
-    DateTimeOffset StartUtc,
-    DateTimeOffset EndUtc,
-    AdvancedSearchGroup Filter);
+public sealed class AdvancedSearchRequest
+{
+    public AdvancedSearchRequest(
+        DateTimeOffset startUtc,
+        DateTimeOffset endUtc,
+        AdvancedSearchGroup filter)
+    {
+        StartUtc = startUtc;
+        EndUtc = endUtc;
+        Filter = filter;
+    }
+
+    public DateTimeOffset StartUtc { get; }
+    public DateTimeOffset EndUtc { get; }
+    public AdvancedSearchGroup Filter { get; }
+}
 
 public sealed class AdvancedSearchState
 {

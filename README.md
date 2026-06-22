@@ -90,7 +90,7 @@ Notable files and folders:
 
 | Project | Description |
 | --- | --- |
-| `FlowRunFinderV2.Core` | Reusable [.NET](https://dotnet.microsoft.com/) application logic with no [Avalonia](https://avaloniaui.net/) dependency. |
+| `FlowRunFinderV2.Core` | Reusable [.NET Standard 2.0](https://learn.microsoft.com/dotnet/standard/net-standard) application logic with no [Avalonia](https://avaloniaui.net/) dependency, so it can be referenced by net48 hosts such as XrmToolBox plugins. |
 | `FlowRunFinderV2.UI` | The [Avalonia](https://avaloniaui.net/) desktop app, dialogs, windows, app resources, UI-specific converters, and run grid built with [Avalonia DataGrid](https://docs.avaloniaui.net/docs/reference/controls/datagrid/). |
 
 | Namespace | Description |

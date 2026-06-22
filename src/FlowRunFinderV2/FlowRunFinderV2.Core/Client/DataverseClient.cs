@@ -51,7 +51,8 @@ public sealed class DataverseClient : IDisposable
     private async Task<JsonDocument> GetJsonAsync(string relativeQuery, CancellationToken cancellationToken)
     {
         using var response = await _httpClient.GetAsync(new Uri(_baseApiUri, relativeQuery), cancellationToken).ConfigureAwait(false);
-        var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        var body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
 
         if (!response.IsSuccessStatusCode)
         {
@@ -92,5 +93,4 @@ internal static class JsonElementExtensions
         var value = element.GetStringOrDefault(propertyName);
         return DateTimeOffset.TryParse(value, out var dateTime) ? dateTime : null;
     }
-
 }

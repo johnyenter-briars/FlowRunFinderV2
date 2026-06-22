@@ -2,10 +2,10 @@ namespace FlowRunFinderV2.Core.Model;
 
 public sealed class CloudFlow
 {
-    public required Guid WorkflowId { get; init; }
-    public required string Name { get; init; }
-    public string? UniqueName { get; init; }
-    public DateTimeOffset? ModifiedOn { get; init; }
+    public Guid WorkflowId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? UniqueName { get; set; }
+    public DateTimeOffset? ModifiedOn { get; set; }
 
     public override string ToString()
     {

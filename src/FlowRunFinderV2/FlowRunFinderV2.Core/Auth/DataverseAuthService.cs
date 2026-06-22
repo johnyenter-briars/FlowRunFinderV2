@@ -23,7 +23,7 @@ public sealed class DataverseAuthService
         }
         else
         {
-            TokenCacheProvider.RegisterPath(_app.UserTokenCache, tokenCachePath);
+            TokenCacheProvider.RegisterPath(_app.UserTokenCache, tokenCachePath!);
         }
     }
 
@@ -58,6 +58,28 @@ public sealed class DataverseAuthService
     }
 }
 
-public sealed record AuthResult(string AccessToken, DateTimeOffset ExpiresOn);
+public sealed class AuthResult
+{
+    public AuthResult(string accessToken, DateTimeOffset expiresOn)
+    {
+        AccessToken = accessToken;
+        ExpiresOn = expiresOn;
+    }
 
-public sealed record DeviceCodePrompt(string VerificationUrl, string UserCode, string Message);
+    public string AccessToken { get; }
+    public DateTimeOffset ExpiresOn { get; }
+}
+
+public sealed class DeviceCodePrompt
+{
+    public DeviceCodePrompt(string verificationUrl, string userCode, string message)
+    {
+        VerificationUrl = verificationUrl;
+        UserCode = userCode;
+        Message = message;
+    }
+
+    public string VerificationUrl { get; }
+    public string UserCode { get; }
+    public string Message { get; }
+}

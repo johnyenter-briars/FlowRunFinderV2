@@ -72,7 +72,7 @@ public sealed class FlowRunQueryEngine
                 }
 
                 var flowRun = _client.CreateFlowRun(environmentId, flowId, run);
-                if (flowRun.StartedOn is null)
+                if (flowRun.StartedOn == null)
                 {
                     _logger?.Debug($"Advanced search skipped run with no start time. FlowId={flowId}; RunName={flowRun.Name}; RunId={flowRun.RunId}.");
                     continue;
@@ -190,7 +190,7 @@ public sealed class FlowRunQueryEngine
             AdvancedSearchComparisonOperator.Equals =>
                 string.Equals(actualValue, condition.Value, StringComparison.OrdinalIgnoreCase),
             AdvancedSearchComparisonOperator.Contains =>
-                actualValue.Contains(condition.Value, StringComparison.OrdinalIgnoreCase),
+                actualValue.IndexOf(condition.Value, StringComparison.OrdinalIgnoreCase) >= 0,
             _ => false
         };
 

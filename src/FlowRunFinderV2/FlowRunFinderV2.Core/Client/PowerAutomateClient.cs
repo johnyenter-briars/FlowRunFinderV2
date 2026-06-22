@@ -1,7 +1,7 @@
 using System.Net.Http.Headers;
 using System.Text.Json;
-using FlowRunFinderV2.Core.Model;
 using FlowRunFinderV2.Core.Logging;
+using FlowRunFinderV2.Core.Model;
 
 namespace FlowRunFinderV2.Core.Client;
 
@@ -70,7 +70,7 @@ public sealed class PowerAutomateClient : IDisposable
         using var document = await GetJsonAsync(pageUrl, cancellationToken).ConfigureAwait(false);
         var runs = document.RootElement.TryGetProperty("value", out var runArray)
             ? runArray.EnumerateArray().Select(run => run.Clone()).ToList()
-            : [];
+            : new List<JsonElement>();
 
         return new PowerAutomateRunPage(runs, GetNextLink(document.RootElement));
     }
@@ -128,7 +128,8 @@ public sealed class PowerAutomateClient : IDisposable
     private async Task<JsonDocument> GetJsonAsync(string url, CancellationToken cancellationToken)
     {
         using var response = await _httpClient.GetAsync(url, cancellationToken).ConfigureAwait(false);
-        var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        var body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
 
         if (!response.IsSuccessStatusCode)
         {
@@ -147,9 +148,9 @@ public sealed class PowerAutomateClient : IDisposable
 
     private static string BuildPowerPlatformFlowBaseUrl(string environmentId, Guid flowId)
     {
-        var hostEnvironmentId = environmentId.Replace("-", string.Empty, StringComparison.OrdinalIgnoreCase);
+        var hostEnvironmentId = environmentId.Replace("-", string.Empty);
         var host = hostEnvironmentId.Length == 32
-            ? $"{hostEnvironmentId[..30]}.{hostEnvironmentId[30..]}"
+            ? $"{hostEnvironmentId.Substring(0, 30)}.{hostEnvironmentId.Substring(30)}"
             : hostEnvironmentId;
 
         return $"https://{host}.environment.api.powerplatform.com" +
@@ -231,7 +232,8 @@ public sealed class PowerAutomateClient : IDisposable
             _logger?.Trace($"Loading trigger content from signed/direct link. Signed={HasSignedPowerPlatformContentQuery(link)}.");
             var client = HasSignedPowerPlatformContentQuery(link) ? _sasHttpClient : _httpClient;
             using var response = await client.GetAsync(link, cancellationToken).ConfigureAwait(false);
-            var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            var body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
 
             if (!response.IsSuccessStatusCode)
             {
@@ -269,9 +271,9 @@ public sealed class PowerAutomateClient : IDisposable
 
     private static bool HasSignedPowerPlatformContentQuery(string url)
     {
-        return url.Contains("sig=", StringComparison.OrdinalIgnoreCase) &&
-               url.Contains("sv=", StringComparison.OrdinalIgnoreCase) &&
-               url.Contains("sp=", StringComparison.OrdinalIgnoreCase);
+        return url.IndexOf("sig=", StringComparison.OrdinalIgnoreCase) >= 0 &&
+               url.IndexOf("sv=", StringComparison.OrdinalIgnoreCase) >= 0 &&
+               url.IndexOf("sp=", StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     private static Dictionary<string, string> ExpandTriggerOutputsContent(JsonElement root)
@@ -389,6 +391,14 @@ public sealed class PowerAutomateClient : IDisposable
     }
 }
 
-public sealed record PowerAutomateRunPage(
-    IReadOnlyList<JsonElement> Runs,
-    string? NextLink);
+public sealed class PowerAutomateRunPage
+{
+    public PowerAutomateRunPage(IReadOnlyList<JsonElement> runs, string? nextLink)
+    {
+        Runs = runs;
+        NextLink = nextLink;
+    }
+
+    public IReadOnlyList<JsonElement> Runs { get; }
+    public string? NextLink { get; }
+}

@@ -33,15 +33,16 @@ public sealed class SettingsManager
                 return Current;
             }
 
-            await using var stream = new FileStream(
-                _settingsPath,
-                FileMode.Open,
-                FileAccess.Read,
-                FileShare.Read);
-
-            Current = await JsonSerializer.DeserializeAsync<AppSettings>(stream, JsonOptions, cancellationToken)
-                          .ConfigureAwait(false)
-                      ?? new AppSettings();
+            using (var stream = new FileStream(
+                       _settingsPath,
+                       FileMode.Open,
+                       FileAccess.Read,
+                       FileShare.Read))
+            {
+                Current = await JsonSerializer.DeserializeAsync<AppSettings>(stream, JsonOptions, cancellationToken)
+                              .ConfigureAwait(false)
+                          ?? new AppSettings();
+            }
 
             EnsureCaseInsensitiveColumnCache(Current);
             return Current;
@@ -92,17 +93,22 @@ public sealed class SettingsManager
 
         try
         {
-            await using (var stream = new FileStream(
-                             tempPath,
-                             FileMode.CreateNew,
-                             FileAccess.Write,
-                             FileShare.None))
+            using (var stream = new FileStream(
+                       tempPath,
+                       FileMode.CreateNew,
+                       FileAccess.Write,
+                       FileShare.None))
             {
                 await JsonSerializer.SerializeAsync(stream, Current, JsonOptions, cancellationToken)
                     .ConfigureAwait(false);
             }
 
-            File.Move(tempPath, _settingsPath, overwrite: true);
+            if (File.Exists(_settingsPath))
+            {
+                File.Delete(_settingsPath);
+            }
+
+            File.Move(tempPath, _settingsPath);
         }
         finally
         {

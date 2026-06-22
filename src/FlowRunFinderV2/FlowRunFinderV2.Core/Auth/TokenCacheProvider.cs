@@ -4,7 +4,7 @@ namespace FlowRunFinderV2.Core.Auth;
 
 internal static class TokenCacheProvider
 {
-    private static readonly object CacheLock = new();
+    private static readonly object CacheLock = new object();
 
     public static string CachePath => GetCachePath("msal_cache.bin3");
 

@@ -36,9 +36,13 @@ public sealed class AppDataStore
                 continue;
             }
 
-            await using var stream = File.OpenRead(metadataPath);
-            var connection = await JsonSerializer.DeserializeAsync<ConnectionProfile>(stream, JsonOptions, cancellationToken)
-                .ConfigureAwait(false);
+            ConnectionProfile? connection;
+            using (var stream = File.OpenRead(metadataPath))
+            {
+                connection = await JsonSerializer.DeserializeAsync<ConnectionProfile>(stream, JsonOptions, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
             if (connection is not null)
             {
                 connections.Add(connection);
@@ -71,8 +75,10 @@ public sealed class AppDataStore
     {
         var folder = GetConnectionFolder(connection.Id);
         Directory.CreateDirectory(folder);
-        await using var stream = File.Create(Path.Combine(folder, "connection.json"));
-        await JsonSerializer.SerializeAsync(stream, connection, JsonOptions, cancellationToken).ConfigureAwait(false);
+        using (var stream = File.Create(Path.Combine(folder, "connection.json")))
+        {
+            await JsonSerializer.SerializeAsync(stream, connection, JsonOptions, cancellationToken).ConfigureAwait(false);
+        }
     }
 
     public string GetConnectionFolder(Guid connectionId)
