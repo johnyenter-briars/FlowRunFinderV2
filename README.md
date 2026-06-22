@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="src/FlowRunFinderV2/FlowRunFinderV2/Assets/FlowRunFinderV2.svg" width="96" alt="Flow Run Finder V2 icon" />
+  <img src="src/FlowRunFinderV2/FlowRunFinderV2.UI/Assets/FlowRunFinderV2.svg" width="96" alt="Flow Run Finder V2 icon" />
 </p>
 
 # Flow Run Finder V2
@@ -86,13 +86,29 @@ Notable files and folders:
 - `connections`: saved connection profiles and token caches
 - `logs`: daily log files
 
-## Publish
+## Development
+
+| Project | Description |
+| --- | --- |
+| `FlowRunFinderV2.Core` | Reusable [.NET](https://dotnet.microsoft.com/) application logic with no [Avalonia](https://avaloniaui.net/) dependency. |
+| `FlowRunFinderV2.UI` | The [Avalonia](https://avaloniaui.net/) desktop app, dialogs, windows, app resources, UI-specific converters, and run grid built with [Avalonia DataGrid](https://docs.avaloniaui.net/docs/reference/controls/datagrid/). |
+
+| Namespace | Description |
+| --- | --- |
+| `FlowRunFinderV2.Core.Auth` | Microsoft device-code authentication and token cache wiring through [MSAL.NET](https://learn.microsoft.com/entra/msal/dotnet/). |
+| `FlowRunFinderV2.Core.Client` | API clients for [Dataverse](https://learn.microsoft.com/power-apps/developer/data-platform/) flow metadata and [Power Automate](https://www.microsoft.com/power-platform/products/power-automate) run history. |
+| `FlowRunFinderV2.Core.Configuration` | Local connection profiles and app settings. |
+| `FlowRunFinderV2.Core.Logging` | Local file logging. |
+| `FlowRunFinderV2.Core.Model` | Cloud flow and run models. |
+| `FlowRunFinderV2.Core.Query` | Run query and advanced-search filtering logic. |
+
+#### Publish
 
 ```powershell
-dotnet publish .\src\FlowRunFinderV2\FlowRunFinderV2\FlowRunFinderV2.csproj /p:PublishProfile=FolderProfile
+dotnet publish .\src\FlowRunFinderV2\FlowRunFinderV2.UI\FlowRunFinderV2.UI.csproj /p:PublishProfile=FolderProfile
 ```
 
-The executable is written to `src\FlowRunFinderV2\FlowRunFinderV2\bin\Release\net8.0\win-x64\publish`.
+The executable is written to `src\FlowRunFinderV2\FlowRunFinderV2.UI\bin\Release\net8.0\win-x64\publish`.
 
 ## AI Disclosure
 - AI-assisted tooling was used in the development of this codebase.
