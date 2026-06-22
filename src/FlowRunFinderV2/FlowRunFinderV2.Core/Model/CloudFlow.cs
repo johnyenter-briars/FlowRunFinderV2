@@ -1,4 +1,4 @@
-namespace FlowRunFinderV2.Core.Models;
+namespace FlowRunFinderV2.Core.Model;
 
 public sealed class CloudFlow
 {

@@ -9,10 +9,10 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using FlowRunFinderV2.Core.Auth;
-using FlowRunFinderV2.Core.Clients;
+using FlowRunFinderV2.Core.Client;
 using FlowRunFinderV2.Core.Configuration;
 using FlowRunFinderV2.Core.Logging;
-using FlowRunFinderV2.Core.Models;
+using FlowRunFinderV2.Core.Model;
 using FlowRunFinderV2.Core.Query;
 
 namespace FlowRunFinderV2.UI;

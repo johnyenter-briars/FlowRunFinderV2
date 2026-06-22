@@ -1,6 +1,6 @@
-using FlowRunFinderV2.Core.Clients;
+using FlowRunFinderV2.Core.Client;
 using FlowRunFinderV2.Core.Logging;
-using FlowRunFinderV2.Core.Models;
+using FlowRunFinderV2.Core.Model;
 
 namespace FlowRunFinderV2.Core.Query;
 

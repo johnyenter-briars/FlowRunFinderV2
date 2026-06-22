@@ -1,8 +1,8 @@
 using System.Net.Http.Headers;
 using System.Text.Json;
-using FlowRunFinderV2.Core.Models;
+using FlowRunFinderV2.Core.Model;
 
-namespace FlowRunFinderV2.Core.Clients;
+namespace FlowRunFinderV2.Core.Client;
 
 public sealed class DataverseClient : IDisposable
 {
