@@ -1,0 +1,256 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="FlowRunFinderV2.UI.MainWindow"
+        Title="Flow Run Finder V2"
+        Width="1120"
+        Height="760"
+        WindowState="Maximized"
+        MinWidth="860"
+        MinHeight="560">
+  <Grid Background="{DynamicResource AppBackgroundBrush}">
+    <Grid RowDefinitions="Auto,Auto,*" Margin="20" RowSpacing="16">
+      <Border Padding="14"
+              CornerRadius="8"
+              Background="{DynamicResource AppPanelBrush}"
+              BorderBrush="{DynamicResource AppBorderBrush}"
+              BorderThickness="1">
+      <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="10">
+      <TextBlock Text="Connection"
+                 Foreground="{DynamicResource AppMutedTextBrush}"
+                 VerticalAlignment="Center" />
+      <TextBlock x:Name="ConnectionTextBlock"
+                 Grid.Column="1"
+                 VerticalAlignment="Center"
+                 Text="No connection selected." />
+      <Button x:Name="NewConnectionButton"
+              Grid.Column="2"
+              Classes="primary"
+              Content="New"
+              Click="OnNewConnectionClicked" />
+      <Button x:Name="SwitchConnectionButton"
+              Grid.Column="3"
+              Content="Switch"
+              Click="OnSwitchConnectionClicked" />
+      <Button x:Name="SettingsButton"
+              Grid.Column="4"
+              Content="Settings"
+              Click="OnSettingsClicked" />
+      </Grid>
+      </Border>
+
+      <Grid Grid.Row="1" RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
+        <Border Padding="14"
+                CornerRadius="8"
+                Background="{DynamicResource AppPanelBrush}"
+                BorderBrush="{DynamicResource AppBorderBrush}"
+                BorderThickness="1">
+        <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="10">
+        <TextBlock Text="Flow"
+                   Foreground="{DynamicResource AppMutedTextBrush}"
+                   VerticalAlignment="Center" />
+        <Button x:Name="FlowPickerButton"
+                Grid.Column="1"
+                MinHeight="32"
+                HorizontalAlignment="Stretch"
+                HorizontalContentAlignment="Left"
+                Content="Select a flow"
+                Click="OnFlowPickerClicked" />
+        <Popup x:Name="FlowPickerPopup"
+               Grid.Column="1"
+               PlacementTarget="{Binding ElementName=FlowPickerButton}"
+               Placement="Bottom"
+               IsLightDismissEnabled="True">
+          <Border Width="620"
+                  MaxHeight="420"
+                  Padding="12"
+                  CornerRadius="8"
+                  Background="{DynamicResource AppPanelAltBrush}"
+                  BorderBrush="{DynamicResource AppBorderBrush}"
+                  BorderThickness="1">
+            <Grid RowDefinitions="Auto,*" RowSpacing="8">
+              <TextBox x:Name="FlowSearchTextBox"
+                       Watermark="Search flows"
+                       TextChanged="OnFlowSearchTextChanged" />
+              <ListBox x:Name="FlowListBox"
+                       Grid.Row="1"
+                       SelectionChanged="OnFlowListSelectionChanged"
+                       MaxHeight="360" />
+            </Grid>
+          </Border>
+        </Popup>
+        <Button x:Name="RefreshRunsButton"
+                Grid.Column="2"
+                Content="Refresh Runs"
+                Classes="primary"
+                IsEnabled="False"
+                Click="OnRefreshRunsClicked" />
+        <Button x:Name="TriggerColumnsButton"
+                Grid.Column="3"
+                Content="Trigger Columns"
+                IsEnabled="False"
+                Click="OnTriggerColumnsClicked" />
+        <Button x:Name="AdvancedSearchButton"
+                Grid.Column="4"
+                Content="Advanced Search"
+                IsEnabled="False"
+                Click="OnAdvancedSearchClicked" />
+        <Popup x:Name="TriggerColumnsPopup"
+               Grid.Column="3"
+               PlacementTarget="{Binding ElementName=TriggerColumnsButton}"
+               Placement="Bottom"
+               IsLightDismissEnabled="True">
+          <Border Width="320"
+                  MaxHeight="380"
+                  Padding="12"
+                  CornerRadius="8"
+                  Background="{DynamicResource AppPanelAltBrush}"
+                  BorderBrush="{DynamicResource AppBorderBrush}"
+                  BorderThickness="1">
+            <Grid RowDefinitions="Auto,Auto,*" RowSpacing="8">
+              <TextBlock Text="Trigger input columns"
+                         FontWeight="SemiBold" />
+              <TextBox x:Name="TriggerColumnsSearchTextBox"
+                       Grid.Row="1"
+                       Watermark="Search attributes"
+                       TextChanged="OnTriggerColumnsSearchTextChanged" />
+              <ScrollViewer Grid.Row="2"
+                            VerticalScrollBarVisibility="Auto"
+                            HorizontalScrollBarVisibility="Disabled">
+                <ItemsControl x:Name="TriggerColumnsItemsControl">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <CheckBox Content="{Binding Name}"
+                                IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                Checked="OnTriggerColumnSelectionChanged"
+                                Unchecked="OnTriggerColumnSelectionChanged" />
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </ScrollViewer>
+            </Grid>
+          </Border>
+        </Popup>
+        </Grid>
+        </Border>
+
+        <Border Grid.Row="1"
+              Background="{DynamicResource AppPanelBrush}"
+              BorderBrush="{DynamicResource AppBorderBrush}"
+              BorderThickness="1"
+              CornerRadius="8"
+              Padding="12"
+              IsVisible="False"
+              x:Name="DeviceCodePanel">
+        <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10" RowSpacing="6">
+          <TextBlock x:Name="DeviceCodeMessageTextBlock"
+                     Grid.ColumnSpan="3"
+                     TextWrapping="Wrap" />
+          <TextBlock Grid.Row="1"
+                     Text="URL"
+                     VerticalAlignment="Center" />
+          <TextBlock x:Name="DeviceCodeUrlTextBlock"
+                     Grid.Row="1"
+                     Grid.Column="1"
+                     VerticalAlignment="Center"
+                     TextTrimming="CharacterEllipsis" />
+          <Button x:Name="CopyDeviceUrlButton"
+                  Grid.Row="1"
+                  Grid.Column="2"
+                  Classes="icon"
+                  ToolTip.Tip="Copy login URL"
+                  Click="OnCopyDeviceUrlClicked">
+            <PathIcon Data="M8,2 L18,2 L18,14 L8,14 Z M5,6 L5,18 L15,18 L15,16 L7,16 L7,6 Z" />
+          </Button>
+          <TextBlock Grid.Row="2"
+                     Text="Code"
+                     VerticalAlignment="Center" />
+          <TextBlock x:Name="DeviceCodeTextBlock"
+                     Grid.Row="2"
+                     Grid.Column="1"
+                     VerticalAlignment="Center"
+                     FontWeight="SemiBold" />
+          <Button x:Name="CopyDeviceCodeButton"
+                  Grid.Row="2"
+                  Grid.Column="2"
+                  Classes="icon"
+                  ToolTip.Tip="Copy device code"
+                  Click="OnCopyDeviceCodeClicked">
+            <PathIcon Data="M8,2 L18,2 L18,14 L8,14 Z M5,6 L5,18 L15,18 L15,16 L7,16 L7,6 Z" />
+          </Button>
+        </Grid>
+        </Border>
+
+        <TextBlock x:Name="StatusTextBlock"
+                 Grid.Row="2"
+                 Foreground="{DynamicResource AppMutedTextBrush}"
+                 Text="Not connected." />
+      </Grid>
+
+      <Border Grid.Row="2"
+              CornerRadius="8"
+              Background="{DynamicResource AppPanelBrush}"
+              BorderBrush="{DynamicResource AppBorderBrush}"
+              BorderThickness="1"
+              Padding="1">
+      <DataGrid x:Name="RunsDataGrid"
+                AutoGenerateColumns="False"
+                IsReadOnly="True"
+                GridLinesVisibility="Horizontal"
+                HeadersVisibility="Column"
+                CanUserResizeColumns="True">
+      <DataGrid.Columns>
+        <DataGridTextColumn Header="Started" Binding="{Binding StartedOn}" Width="Auto" />
+        <DataGridTextColumn Header="Ended" Binding="{Binding EndedOn}" Width="Auto" />
+        <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="Auto" />
+        <DataGridTemplateColumn Header="Run Id" Width="Auto">
+          <DataGridTemplateColumn.CellTemplate>
+            <DataTemplate>
+              <TextBlock Text="{Binding Name}"
+                         Foreground="{DynamicResource SystemAccentColor}"
+                         TextDecorations="Underline"
+                         Cursor="Hand"
+                         PointerPressed="OnRunLinkPointerPressed" />
+            </DataTemplate>
+          </DataGridTemplateColumn.CellTemplate>
+        </DataGridTemplateColumn>
+      </DataGrid.Columns>
+      </DataGrid>
+      </Border>
+    </Grid>
+
+    <Border x:Name="BusyOverlay"
+            HorizontalAlignment="Right"
+            VerticalAlignment="Bottom"
+            Margin="18"
+            Padding="12"
+            CornerRadius="8"
+            Background="{DynamicResource AppPanelAltBrush}"
+            BorderBrush="{DynamicResource AppBorderBrush}"
+            BorderThickness="1"
+            IsVisible="False">
+      <StackPanel Orientation="Horizontal" Spacing="10">
+        <ProgressBar Width="86"
+                     Height="6"
+                     IsIndeterminate="True"
+                     VerticalAlignment="Center" />
+        <TextBlock x:Name="BusyTextBlock"
+                   Text="Working..."
+                   VerticalAlignment="Center" />
+      </StackPanel>
+    </Border>
+
+    <Border x:Name="ToastOverlay"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Bottom"
+            Margin="18"
+            Padding="12,8"
+            CornerRadius="8"
+            Background="{DynamicResource AppPanelAltBrush}"
+            BorderBrush="{DynamicResource AppBorderBrush}"
+            BorderThickness="1"
+            IsVisible="False">
+      <TextBlock x:Name="ToastTextBlock"
+                 Text="Copied to clipboard" />
+    </Border>
+  </Grid>
+</Window>
