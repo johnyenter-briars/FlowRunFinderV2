@@ -9,6 +9,11 @@ public sealed class PowerAutomateAuthService
 
     private readonly IPublicClientApplication _app;
 
+    public PowerAutomateAuthService(TokenCacheOptions tokenCacheOptions)
+        : this((tokenCacheOptions ?? throw new ArgumentNullException(nameof(tokenCacheOptions))).PowerAutomateTokenCachePath)
+    {
+    }
+
     public PowerAutomateAuthService(string? tokenCachePath = null)
     {
         _app = PublicClientApplicationBuilder
@@ -19,7 +24,9 @@ public sealed class PowerAutomateAuthService
 
         if (string.IsNullOrWhiteSpace(tokenCachePath))
         {
-            TokenCacheProvider.Register(_app.UserTokenCache, "power_automate_msal_cache.bin3");
+            TokenCacheProvider.Register(
+                _app.UserTokenCache,
+                TokenCacheOptions.DefaultPowerAutomateCacheFileName);
         }
         else
         {

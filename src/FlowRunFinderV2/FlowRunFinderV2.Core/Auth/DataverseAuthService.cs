@@ -9,6 +9,11 @@ public sealed class DataverseAuthService
 
     private readonly IPublicClientApplication _app;
 
+    public DataverseAuthService(TokenCacheOptions tokenCacheOptions)
+        : this((tokenCacheOptions ?? throw new ArgumentNullException(nameof(tokenCacheOptions))).DataverseTokenCachePath)
+    {
+    }
+
     public DataverseAuthService(string? tokenCachePath = null)
     {
         _app = PublicClientApplicationBuilder
@@ -19,7 +24,9 @@ public sealed class DataverseAuthService
 
         if (string.IsNullOrWhiteSpace(tokenCachePath))
         {
-            TokenCacheProvider.Register(_app.UserTokenCache);
+            TokenCacheProvider.Register(
+                _app.UserTokenCache,
+                TokenCacheOptions.DefaultDataverseCacheFileName);
         }
         else
         {

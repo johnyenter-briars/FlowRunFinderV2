@@ -316,8 +316,9 @@ public sealed partial class MainWindow : Window
             _logger.SetConnection(connection);
             _logger.Info("Opening connection.");
             _environmentUrl = new Uri(connection.EnvironmentUrl);
-            _authService = new DataverseAuthService(_appDataStore.GetDataverseTokenCachePath(connection.Id));
-            _powerAutomateAuthService = new PowerAutomateAuthService(_appDataStore.GetPowerAutomateTokenCachePath(connection.Id));
+            var tokenCacheOptions = new TokenCacheOptions(_appDataStore.GetConnectionFolder(connection.Id));
+            _authService = new DataverseAuthService(tokenCacheOptions);
+            _powerAutomateAuthService = new PowerAutomateAuthService(tokenCacheOptions);
 
             ConnectionTextBlock.Text = $"{connection.Name} - {connection.EnvironmentUrl}";
             await _settingsManager.SaveAsync(_settings, cancellationToken);

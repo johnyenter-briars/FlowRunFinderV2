@@ -102,6 +102,8 @@ Notable files and folders:
 | `FlowRunFinderV2.Core.Model` | Cloud flow and run models. |
 | `FlowRunFinderV2.Core.Query` | Run query and advanced-search filtering logic. |
 
+Callers that host Core outside this app, such as an XrmToolBox plugin, can pass `TokenCacheOptions` into the auth services to choose the token cache directory instead of using the app's default local-data folder.
+
 #### Publish
 
 ```powershell

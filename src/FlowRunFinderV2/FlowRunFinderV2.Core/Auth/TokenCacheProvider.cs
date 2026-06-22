@@ -6,9 +6,13 @@ internal static class TokenCacheProvider
 {
     private static readonly object CacheLock = new object();
 
-    public static string CachePath => GetCachePath("msal_cache.bin3");
+    public static void Register(ITokenCache tokenCache, string fileName = "msal_cache.bin3")
+    {
+        var cachePath = GetDefaultCachePath(fileName);
+        RegisterPath(tokenCache, cachePath);
+    }
 
-    public static string GetCachePath(string fileName)
+    public static string GetDefaultCachePath(string fileName)
     {
         var folder = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -17,15 +21,14 @@ internal static class TokenCacheProvider
         return Path.Combine(folder, fileName);
     }
 
-    public static void Register(ITokenCache tokenCache, string fileName = "msal_cache.bin3")
-    {
-        var cachePath = GetCachePath(fileName);
-        RegisterPath(tokenCache, cachePath);
-    }
-
     public static void RegisterPath(ITokenCache tokenCache, string cachePath)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(cachePath)!);
+        var cacheDirectory = Path.GetDirectoryName(cachePath);
+        if (!string.IsNullOrWhiteSpace(cacheDirectory))
+        {
+            Directory.CreateDirectory(cacheDirectory);
+        }
+
         tokenCache.SetBeforeAccess(args =>
         {
             lock (CacheLock)
