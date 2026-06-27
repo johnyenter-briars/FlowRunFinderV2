@@ -98,11 +98,12 @@ public sealed partial class MainWindow : Window
         {
             settings.DefaultRunCount = result.DefaultRunCount;
             settings.MaxRunsToQuery = result.MaxRunsToQuery;
+            settings.UseFlowRunHistoryTable = result.UseFlowRunHistoryTable;
             settings.LogVerbosity = result.LogVerbosity;
         });
         _settings = _settingsManager.Current;
         _logger.SetVerbosity(_settings.LogVerbosity);
-        _logger.Info($"Settings saved. DefaultRunCount={_settings.DefaultRunCount}; MaxRunsToQuery={_settings.MaxRunsToQuery}; LogVerbosity={_settings.LogVerbosity}.");
+        _logger.Info($"Settings saved. DefaultRunCount={_settings.DefaultRunCount}; MaxRunsToQuery={_settings.MaxRunsToQuery}; UseFlowRunHistoryTable={_settings.UseFlowRunHistoryTable}; LogVerbosity={_settings.LogVerbosity}.");
         SetStatus($"Settings saved. Default run count is {_settings.DefaultRunCount}; max runs to query is {_settings.MaxRunsToQuery}.");
     }
 
@@ -388,8 +389,11 @@ public sealed partial class MainWindow : Window
             _runs.Clear();
             ResetRunColumns();
             ResetTriggerColumnOptions(clearKnownKeys: true);
+            var sourceDescription = _settings.UseFlowRunHistoryTable
+                ? "Dataverse flow run history table"
+                : "Power Platform API";
             SetStatus($"Loading latest {_settings.DefaultRunCount} runs for {flow.Name}...");
-            _logger.Info($"Loading latest runs. FlowId={flow.WorkflowId}; FlowName={flow.Name}; Top={_settings.DefaultRunCount}.");
+            _logger.Info($"Loading latest runs. FlowId={flow.WorkflowId}; FlowName={flow.Name}; Top={_settings.DefaultRunCount}; Source={sourceDescription}.");
 
             if (_powerAutomateAuthService is null)
             {
@@ -411,11 +415,33 @@ public sealed partial class MainWindow : Window
                 return;
             }
 
-            var runs = await queryEngine.GetLatestRunsAsync(
-                environmentId,
-                flow.WorkflowId,
-                _settings.DefaultRunCount,
-                cancellationToken);
+            IReadOnlyList<FlowRun> runs;
+            if (_settings.UseFlowRunHistoryTable)
+            {
+                if (_client is null)
+                {
+                    return;
+                }
+
+                runs = await _client.GetLatestFlowRunsAsync(
+                    flow.WorkflowId,
+                    _settings.DefaultRunCount,
+                    cancellationToken);
+
+                foreach (var run in runs)
+                {
+                    run.RunUrl = BuildRunUrl(environmentId, flow.WorkflowId, run.Name);
+                    await paClient.LoadTriggerOutputsAsync(environmentId, flow.WorkflowId, run, cancellationToken);
+                }
+            }
+            else
+            {
+                runs = await queryEngine.GetLatestRunsAsync(
+                    environmentId,
+                    flow.WorkflowId,
+                    _settings.DefaultRunCount,
+                    cancellationToken);
+            }
 
             var triggerKeys = new SortedSet<string>(AttributeNameComparer.Instance);
             foreach (var run in runs)
@@ -448,8 +474,11 @@ public sealed partial class MainWindow : Window
             _runs.Clear();
             ResetRunColumns();
             ResetTriggerColumnOptions(clearKnownKeys: false);
+            var sourceDescription = _settings.UseFlowRunHistoryTable
+                ? "Dataverse flow run history table"
+                : "Power Platform API";
             SetStatus($"Searching runs for {flow.Name}...");
-            _logger.Info($"Advanced search started. FlowId={flow.WorkflowId}; FlowName={flow.Name}; StartUtc={request.StartUtc:O}; EndUtc={request.EndUtc:O}; Filter={FormatFilter(request.Filter)}.");
+            _logger.Info($"Advanced search started. FlowId={flow.WorkflowId}; FlowName={flow.Name}; StartUtc={request.StartUtc:O}; EndUtc={request.EndUtc:O}; Filter={FormatFilter(request.Filter)}; Source={sourceDescription}.");
 
             if (_powerAutomateAuthService is null)
             {
@@ -471,14 +500,46 @@ public sealed partial class MainWindow : Window
                 return;
             }
 
-            var runs = await queryEngine.SearchRunsAsync(
-                environmentId,
-                flow.WorkflowId,
-                request.StartUtc,
-                request.EndUtc,
-                request.Filter,
-                _settings.MaxRunsToQuery,
-                cancellationToken);
+            IReadOnlyList<FlowRun> runs;
+            if (_settings.UseFlowRunHistoryTable)
+            {
+                if (_client is null)
+                {
+                    return;
+                }
+
+                var candidateRuns = await _client.SearchFlowRunsAsync(
+                    flow.WorkflowId,
+                    request.StartUtc,
+                    request.EndUtc,
+                    _settings.MaxRunsToQuery,
+                    cancellationToken);
+
+                var matchedRuns = new List<FlowRun>();
+                foreach (var run in candidateRuns)
+                {
+                    run.RunUrl = BuildRunUrl(environmentId, flow.WorkflowId, run.Name);
+                    await paClient.LoadTriggerOutputsAsync(environmentId, flow.WorkflowId, run, cancellationToken);
+
+                    if (FlowRunQueryEngine.MatchesFilter(run, request.Filter))
+                    {
+                        matchedRuns.Add(run);
+                    }
+                }
+
+                runs = matchedRuns;
+            }
+            else
+            {
+                runs = await queryEngine.SearchRunsAsync(
+                    environmentId,
+                    flow.WorkflowId,
+                    request.StartUtc,
+                    request.EndUtc,
+                    request.Filter,
+                    _settings.MaxRunsToQuery,
+                    cancellationToken);
+            }
 
             var triggerKeys = new SortedSet<string>(AttributeNameComparer.Instance);
             foreach (var run in runs)
@@ -755,6 +816,13 @@ public sealed partial class MainWindow : Window
         });
 
         return string.Join($" {filter.LogicalOperator.ToString().ToUpperInvariant()} ", parts);
+    }
+
+    private static string? BuildRunUrl(string environmentId, Guid flowId, string? runName)
+    {
+        return string.IsNullOrWhiteSpace(runName)
+            ? null
+            : $"https://make.powerautomate.com/environments/{environmentId}/flows/{flowId:D}/runs/{runName}";
     }
 
     private void SetStatus(string message)

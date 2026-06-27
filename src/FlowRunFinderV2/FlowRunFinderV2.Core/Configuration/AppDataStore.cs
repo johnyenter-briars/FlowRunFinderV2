@@ -101,6 +101,7 @@ public sealed class AppSettings
 {
     public int DefaultRunCount { get; set; } = 10;
     public int MaxRunsToQuery { get; set; } = 1000;
+    public bool UseFlowRunHistoryTable { get; set; }
     public LogVerbosity LogVerbosity { get; set; } = LogVerbosity.Info;
     public Dictionary<string, List<string>> SelectedTriggerColumnsByFlowId { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }

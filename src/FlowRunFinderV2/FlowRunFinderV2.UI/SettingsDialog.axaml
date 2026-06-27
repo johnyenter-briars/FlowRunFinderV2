@@ -3,11 +3,11 @@
         x:Class="FlowRunFinderV2.UI.SettingsDialog"
         Title="Settings"
         Width="420"
-        Height="310"
+        Height="340"
         MinWidth="380"
         MinHeight="200"
         WindowStartupLocation="CenterOwner">
-  <Grid RowDefinitions="Auto,Auto,Auto,Auto,*" ColumnDefinitions="Auto,*" Margin="16" RowSpacing="10" ColumnSpacing="10">
+  <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*" ColumnDefinitions="Auto,*" Margin="16" RowSpacing="10" ColumnSpacing="10">
     <TextBlock Text="Default runs"
                VerticalAlignment="Center" />
     <NumericUpDown x:Name="DefaultRunCountNumeric"
@@ -25,19 +25,24 @@
                    Minimum="1"
                    Increment="100" />
 
-    <TextBlock Grid.Row="2"
+    <CheckBox x:Name="UseFlowRunHistoryTableCheckBox"
+              Grid.Row="2"
+              Grid.ColumnSpan="2"
+              Content="Use flow run history table" />
+
+    <TextBlock Grid.Row="3"
                Text="Log mode"
                VerticalAlignment="Center" />
     <ComboBox x:Name="LogVerbosityComboBox"
-              Grid.Row="2"
+              Grid.Row="3"
               Grid.Column="1" />
 
     <TextBlock x:Name="ValidationTextBlock"
-               Grid.Row="3"
+               Grid.Row="4"
                Grid.ColumnSpan="2"
                Foreground="{DynamicResource SystemControlErrorTextForegroundBrush}" />
 
-    <StackPanel Grid.Row="4"
+    <StackPanel Grid.Row="5"
                 Grid.ColumnSpan="2"
                 Orientation="Horizontal"
                 HorizontalAlignment="Right"

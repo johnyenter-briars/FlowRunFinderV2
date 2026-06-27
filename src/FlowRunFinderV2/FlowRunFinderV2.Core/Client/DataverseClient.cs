@@ -1,4 +1,5 @@
 using System.Net.Http.Headers;
+using System.Globalization;
 using System.Text.Json;
 using FlowRunFinderV2.Core.Model;
 
@@ -46,6 +47,80 @@ public sealed class DataverseClient : IDisposable
         }
 
         return flows;
+    }
+
+    public async Task<IReadOnlyList<FlowRun>> GetLatestFlowRunsAsync(
+        Guid flowId,
+        int top,
+        CancellationToken cancellationToken)
+    {
+        if (top < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(top), "Top must be at least 1.");
+        }
+
+        var query = "flowruns" +
+                    "?$select=flowrunid,name,status,starttime,endtime,_workflow_value,workflowid,clienttrackingid,partitionid" +
+                    $"&$filter=_workflow_value eq {flowId:D}" +
+                    "&$orderby=starttime desc" +
+                    $"&$top={top}";
+
+        return await GetFlowRunsAsync(query, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<IReadOnlyList<FlowRun>> SearchFlowRunsAsync(
+        Guid flowId,
+        DateTimeOffset startUtc,
+        DateTimeOffset endUtc,
+        int maxRunsToQuery,
+        CancellationToken cancellationToken)
+    {
+        if (maxRunsToQuery < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maxRunsToQuery), "Max runs to query must be at least 1.");
+        }
+
+        var start = FormatDataverseDateTime(startUtc);
+        var end = FormatDataverseDateTime(endUtc);
+        var query = "flowruns" +
+                    "?$select=flowrunid,name,status,starttime,endtime,_workflow_value,workflowid,clienttrackingid,partitionid" +
+                    $"&$filter=_workflow_value eq {flowId:D} and starttime ge {start} and starttime le {end}" +
+                    "&$orderby=starttime desc" +
+                    $"&$top={maxRunsToQuery}";
+
+        return await GetFlowRunsAsync(query, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<IReadOnlyList<FlowRun>> GetFlowRunsAsync(string relativeQuery, CancellationToken cancellationToken)
+    {
+        using var document = await GetJsonAsync(relativeQuery, cancellationToken).ConfigureAwait(false);
+        var rows = document.RootElement.GetProperty("value");
+        var runs = new List<FlowRun>();
+
+        foreach (var row in rows.EnumerateArray())
+        {
+            var runName = row.GetStringOrDefault("name") ??
+                          row.GetStringOrDefault("clienttrackingid") ??
+                          row.GetStringOrDefault("partitionid");
+
+            runs.Add(new FlowRun
+            {
+                RunId = row.GetStringOrDefault("flowrunid") ?? runName,
+                Name = runName,
+                Status = row.GetStringOrDefault("status"),
+                StartedOn = row.GetDateTimeOffsetOrDefault("starttime"),
+                EndedOn = row.GetDateTimeOffsetOrDefault("endtime")
+            });
+        }
+
+        return runs;
+    }
+
+    private static string FormatDataverseDateTime(DateTimeOffset value)
+    {
+        return value
+            .ToUniversalTime()
+            .ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture);
     }
 
     private async Task<JsonDocument> GetJsonAsync(string relativeQuery, CancellationToken cancellationToken)

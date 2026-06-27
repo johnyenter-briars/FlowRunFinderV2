@@ -178,6 +178,11 @@ public sealed class FlowRunQueryEngine
         return false;
     }
 
+    public static bool MatchesFilter(FlowRun run, AdvancedSearchGroup filter)
+    {
+        return MatchesFilter(run, filter, out _);
+    }
+
     private static bool MatchesCondition(
         FlowRun run,
         AdvancedSearchCondition condition,

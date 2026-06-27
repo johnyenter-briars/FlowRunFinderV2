@@ -9,6 +9,7 @@ public sealed partial class SettingsDialog : Window
 {
     private NumericUpDown _defaultRunCountNumeric = null!;
     private NumericUpDown _maxRunsToQueryNumeric = null!;
+    private CheckBox _useFlowRunHistoryTableCheckBox = null!;
     private ComboBox _logVerbosityComboBox = null!;
     private TextBlock _validationTextBlock = null!;
 
@@ -18,6 +19,7 @@ public sealed partial class SettingsDialog : Window
         this.ApplyAppIcon();
         _defaultRunCountNumeric.Value = settings.DefaultRunCount;
         _maxRunsToQueryNumeric.Value = settings.MaxRunsToQuery;
+        _useFlowRunHistoryTableCheckBox.IsChecked = settings.UseFlowRunHistoryTable;
         _logVerbosityComboBox.ItemsSource = Enum.GetValues<LogVerbosity>();
         _logVerbosityComboBox.SelectedItem = settings.LogVerbosity;
     }
@@ -29,6 +31,8 @@ public sealed partial class SettingsDialog : Window
             ?? throw new InvalidOperationException("DefaultRunCountNumeric was not found.");
         _maxRunsToQueryNumeric = this.FindControl<NumericUpDown>("MaxRunsToQueryNumeric")
             ?? throw new InvalidOperationException("MaxRunsToQueryNumeric was not found.");
+        _useFlowRunHistoryTableCheckBox = this.FindControl<CheckBox>("UseFlowRunHistoryTableCheckBox")
+            ?? throw new InvalidOperationException("UseFlowRunHistoryTableCheckBox was not found.");
         _logVerbosityComboBox = this.FindControl<ComboBox>("LogVerbosityComboBox")
             ?? throw new InvalidOperationException("LogVerbosityComboBox was not found.");
         _validationTextBlock = this.FindControl<TextBlock>("ValidationTextBlock")
@@ -61,8 +65,16 @@ public sealed partial class SettingsDialog : Window
             ? selectedVerbosity
             : LogVerbosity.Info;
 
-        Close(new SettingsDialogResult((int)defaultRunCount.Value, (int)maxRunsToQuery.Value, logVerbosity));
+        Close(new SettingsDialogResult(
+            (int)defaultRunCount.Value,
+            (int)maxRunsToQuery.Value,
+            _useFlowRunHistoryTableCheckBox.IsChecked == true,
+            logVerbosity));
     }
 }
 
-public sealed record SettingsDialogResult(int DefaultRunCount, int MaxRunsToQuery, LogVerbosity LogVerbosity);
+public sealed record SettingsDialogResult(
+    int DefaultRunCount,
+    int MaxRunsToQuery,
+    bool UseFlowRunHistoryTable,
+    LogVerbosity LogVerbosity);

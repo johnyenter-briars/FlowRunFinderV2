@@ -87,6 +87,17 @@ public sealed class PowerAutomateClient : IDisposable
             .ConfigureAwait(false);
     }
 
+    public async Task LoadTriggerOutputsAsync(
+        string environmentId,
+        Guid flowId,
+        FlowRun flowRun,
+        CancellationToken cancellationToken)
+    {
+        var baseUrl = BuildPowerPlatformFlowBaseUrl(environmentId, flowId);
+        await LoadTriggerOutputsFromRunDetailAsync(environmentId, baseUrl, flowRun, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
     public FlowRun CreateFlowRun(string environmentId, Guid flowId, JsonElement run)
     {
         return CreateFlowRunFromList(run, environmentId, BuildPowerPlatformFlowBaseUrl(environmentId, flowId));
@@ -213,6 +224,47 @@ public sealed class PowerAutomateClient : IDisposable
         finally
         {
             detailDocument?.Dispose();
+        }
+    }
+
+    private async Task LoadTriggerOutputsFromRunDetailAsync(
+        string environmentId,
+        string flowBaseUrl,
+        FlowRun flowRun,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(flowRun.Name))
+        {
+            return;
+        }
+
+        var runName = Uri.EscapeDataString(flowRun.Name);
+        var detailUrl = $"{flowBaseUrl}/runs/{runName}?api-version=1";
+        _logger?.Trace($"Loading run detail. RunName={flowRun.Name}; Url={detailUrl}.");
+
+        try
+        {
+            using var detailDocument = await GetJsonAsync(detailUrl, cancellationToken).ConfigureAwait(false);
+            var triggerContent = await GetTriggerContentAsync(detailDocument.RootElement, cancellationToken)
+                .ConfigureAwait(false);
+
+            foreach (var triggerInput in ExpandTriggerOutputsContent(triggerContent))
+            {
+                flowRun.TriggerInputs[triggerInput.Key] = triggerInput.Value;
+            }
+
+            if (flowRun.TriggerInputs.Count > 0)
+            {
+                _logger?.Trace($"Trigger content loaded. RunName={flowRun.Name}; TriggerKeys={flowRun.TriggerInputs.Count}.");
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger?.Debug($"Run detail request failed. RunName={flowRun.Name}; Error={ex.Message}");
+        }
+        catch (JsonException ex)
+        {
+            _logger?.Debug($"Trigger content parsing failed. RunName={flowRun.Name}; Error={ex.Message}");
         }
     }
 
