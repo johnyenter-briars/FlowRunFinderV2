@@ -4,20 +4,29 @@ namespace FlowRunFinderV2.Core.Auth;
 
 public sealed class DataverseAuthService
 {
-    // Public client id commonly used by Dataverse tooling. Replace with your own app registration if blocked.
-    private const string DefaultClientId = "51f81489-12ee-4a9e-aaae-a2591f45987d";
-
     private readonly IPublicClientApplication _app;
 
     public DataverseAuthService(TokenCacheOptions tokenCacheOptions)
-        : this((tokenCacheOptions ?? throw new ArgumentNullException(nameof(tokenCacheOptions))).DataverseTokenCachePath)
+        : this(tokenCacheOptions, AuthenticationClientIds.Dataverse)
+    {
+    }
+
+    public DataverseAuthService(TokenCacheOptions tokenCacheOptions, string? clientId)
+        : this(
+            (tokenCacheOptions ?? throw new ArgumentNullException(nameof(tokenCacheOptions))).DataverseTokenCachePath,
+            clientId)
     {
     }
 
     public DataverseAuthService(string? tokenCachePath = null)
+        : this(tokenCachePath, AuthenticationClientIds.Dataverse)
+    {
+    }
+
+    public DataverseAuthService(string? tokenCachePath, string? clientId)
     {
         _app = PublicClientApplicationBuilder
-            .Create(DefaultClientId)
+            .Create(NormalizeClientId(clientId, AuthenticationClientIds.Dataverse))
             .WithAuthority(AadAuthorityAudience.AzureAdMultipleOrgs)
             .WithDefaultRedirectUri()
             .Build();
@@ -32,6 +41,13 @@ public sealed class DataverseAuthService
         {
             TokenCacheProvider.RegisterPath(_app.UserTokenCache, tokenCachePath!);
         }
+    }
+
+    private static string NormalizeClientId(string? clientId, string defaultClientId)
+    {
+        return string.IsNullOrWhiteSpace(clientId)
+            ? defaultClientId
+            : clientId.Trim();
     }
 
     public async Task<AuthResult> GetTokenAsync(

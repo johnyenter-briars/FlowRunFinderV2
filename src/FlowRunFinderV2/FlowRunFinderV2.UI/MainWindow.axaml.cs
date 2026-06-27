@@ -100,11 +100,19 @@ public sealed partial class MainWindow : Window
             settings.DefaultRunCount = result.DefaultRunCount;
             settings.MaxRunsToQuery = result.MaxRunsToQuery;
             settings.UseFlowRunHistoryTable = result.UseFlowRunHistoryTable;
+            settings.DataverseClientId = result.DataverseClientId;
+            settings.PowerAutomateClientId = result.PowerAutomateClientId;
             settings.LogVerbosity = result.LogVerbosity;
         });
         _settings = _settingsManager.Current;
+        NormalizeSettings();
+        if (_currentConnection is not null)
+        {
+            ConfigureAuthServices(_currentConnection);
+        }
+
         _logger.SetVerbosity(_settings.LogVerbosity);
-        _logger.Info($"Settings saved. DefaultRunCount={_settings.DefaultRunCount}; MaxRunsToQuery={_settings.MaxRunsToQuery}; UseFlowRunHistoryTable={_settings.UseFlowRunHistoryTable}; LogVerbosity={_settings.LogVerbosity}.");
+        _logger.Info($"Settings saved. DefaultRunCount={_settings.DefaultRunCount}; MaxRunsToQuery={_settings.MaxRunsToQuery}; UseFlowRunHistoryTable={_settings.UseFlowRunHistoryTable}; DataverseClientId={_settings.DataverseClientId}; PowerAutomateClientId={_settings.PowerAutomateClientId}; LogVerbosity={_settings.LogVerbosity}.");
         SetStatus($"Settings saved. Default run count is {_settings.DefaultRunCount}; max runs to query is {_settings.MaxRunsToQuery}.");
     }
 
@@ -340,9 +348,7 @@ public sealed partial class MainWindow : Window
             _logger.SetConnection(connection);
             _logger.Info("Opening connection.");
             _environmentUrl = new Uri(connection.EnvironmentUrl);
-            var tokenCacheOptions = new TokenCacheOptions(_appDataStore.GetConnectionFolder(connection.Id));
-            _authService = new DataverseAuthService(tokenCacheOptions);
-            _powerAutomateAuthService = new PowerAutomateAuthService(tokenCacheOptions);
+            ConfigureAuthServices(connection);
 
             ConnectionTextBlock.Text = $"{connection.Name} - {connection.EnvironmentUrl}";
             await _settingsManager.SaveAsync(_settings, cancellationToken);
@@ -830,10 +836,27 @@ public sealed partial class MainWindow : Window
     {
         _settings.DefaultRunCount = Math.Clamp(_settings.DefaultRunCount, 1, 100);
         _settings.MaxRunsToQuery = Math.Max(_settings.MaxRunsToQuery, 1);
+        if (!Guid.TryParse(_settings.DataverseClientId, out _))
+        {
+            _settings.DataverseClientId = AuthenticationClientIds.Dataverse;
+        }
+
+        if (!Guid.TryParse(_settings.PowerAutomateClientId, out _))
+        {
+            _settings.PowerAutomateClientId = AuthenticationClientIds.PowerAutomate;
+        }
+
         if (!Enum.IsDefined(_settings.LogVerbosity))
         {
             _settings.LogVerbosity = LogVerbosity.Info;
         }
+    }
+
+    private void ConfigureAuthServices(ConnectionProfile connection)
+    {
+        var tokenCacheOptions = new TokenCacheOptions(_appDataStore.GetConnectionFolder(connection.Id));
+        _authService = new DataverseAuthService(tokenCacheOptions, _settings.DataverseClientId);
+        _powerAutomateAuthService = new PowerAutomateAuthService(tokenCacheOptions, _settings.PowerAutomateClientId);
     }
 
     private static string FormatFilter(AdvancedSearchGroup filter)

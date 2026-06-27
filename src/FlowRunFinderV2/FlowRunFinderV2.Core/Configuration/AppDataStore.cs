@@ -1,4 +1,5 @@
 using System.Text.Json;
+using FlowRunFinderV2.Core.Auth;
 
 namespace FlowRunFinderV2.Core.Configuration;
 
@@ -101,7 +102,9 @@ public sealed class AppSettings
 {
     public int DefaultRunCount { get; set; } = 10;
     public int MaxRunsToQuery { get; set; } = 1000;
-    public bool UseFlowRunHistoryTable { get; set; }
+    public bool UseFlowRunHistoryTable { get; set; } = true;
+    public string DataverseClientId { get; set; } = AuthenticationClientIds.Dataverse;
+    public string PowerAutomateClientId { get; set; } = AuthenticationClientIds.PowerAutomate;
     public LogVerbosity LogVerbosity { get; set; } = LogVerbosity.Info;
     public Dictionary<string, List<string>> SelectedTriggerColumnsByFlowId { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }

@@ -95,14 +95,14 @@ Notable files and folders:
 
 | Namespace | Description |
 | --- | --- |
-| `FlowRunFinderV2.Core.Auth` | Microsoft device-code authentication and token cache wiring through [MSAL.NET](https://learn.microsoft.com/entra/msal/dotnet/). |
+| `FlowRunFinderV2.Core.Auth` | Microsoft device-code authentication, configurable public client IDs, and token cache wiring through [MSAL.NET](https://learn.microsoft.com/entra/msal/dotnet/). |
 | `FlowRunFinderV2.Core.Client` | API clients for [Dataverse](https://learn.microsoft.com/power-apps/developer/data-platform/) flow metadata and [Power Automate](https://www.microsoft.com/power-platform/products/power-automate) run history. |
 | `FlowRunFinderV2.Core.Configuration` | Local connection profiles and app settings. |
 | `FlowRunFinderV2.Core.Logging` | Local file logging. |
 | `FlowRunFinderV2.Core.Model` | Cloud flow and run models. |
 | `FlowRunFinderV2.Core.Query` | Run query and advanced-search filtering logic. |
 
-Callers that host Core outside this app, such as an XrmToolBox plugin, can pass `TokenCacheOptions` into the auth services to choose the token cache directory instead of using the app's default local-data folder.
+Callers that host Core outside this app, such as an XrmToolBox plugin, can pass `TokenCacheOptions` into the auth services to choose the token cache directory instead of using the app's default local-data folder. They can also pass app-registration client IDs into the auth services instead of using the Microsoft public client IDs exposed by `AuthenticationClientIds`.
 
 #### Publish
 

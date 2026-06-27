@@ -10,6 +10,8 @@ public sealed partial class SettingsDialog : Window
     private NumericUpDown _defaultRunCountNumeric = null!;
     private NumericUpDown _maxRunsToQueryNumeric = null!;
     private CheckBox _useFlowRunHistoryTableCheckBox = null!;
+    private TextBox _dataverseClientIdTextBox = null!;
+    private TextBox _powerAutomateClientIdTextBox = null!;
     private ComboBox _logVerbosityComboBox = null!;
     private TextBlock _validationTextBlock = null!;
 
@@ -20,6 +22,8 @@ public sealed partial class SettingsDialog : Window
         _defaultRunCountNumeric.Value = settings.DefaultRunCount;
         _maxRunsToQueryNumeric.Value = settings.MaxRunsToQuery;
         _useFlowRunHistoryTableCheckBox.IsChecked = settings.UseFlowRunHistoryTable;
+        _dataverseClientIdTextBox.Text = settings.DataverseClientId;
+        _powerAutomateClientIdTextBox.Text = settings.PowerAutomateClientId;
         _logVerbosityComboBox.ItemsSource = Enum.GetValues<LogVerbosity>();
         _logVerbosityComboBox.SelectedItem = settings.LogVerbosity;
     }
@@ -33,6 +37,10 @@ public sealed partial class SettingsDialog : Window
             ?? throw new InvalidOperationException("MaxRunsToQueryNumeric was not found.");
         _useFlowRunHistoryTableCheckBox = this.FindControl<CheckBox>("UseFlowRunHistoryTableCheckBox")
             ?? throw new InvalidOperationException("UseFlowRunHistoryTableCheckBox was not found.");
+        _dataverseClientIdTextBox = this.FindControl<TextBox>("DataverseClientIdTextBox")
+            ?? throw new InvalidOperationException("DataverseClientIdTextBox was not found.");
+        _powerAutomateClientIdTextBox = this.FindControl<TextBox>("PowerAutomateClientIdTextBox")
+            ?? throw new InvalidOperationException("PowerAutomateClientIdTextBox was not found.");
         _logVerbosityComboBox = this.FindControl<ComboBox>("LogVerbosityComboBox")
             ?? throw new InvalidOperationException("LogVerbosityComboBox was not found.");
         _validationTextBlock = this.FindControl<TextBlock>("ValidationTextBlock")
@@ -61,6 +69,20 @@ public sealed partial class SettingsDialog : Window
             return;
         }
 
+        var dataverseClientId = _dataverseClientIdTextBox.Text?.Trim() ?? string.Empty;
+        if (!Guid.TryParse(dataverseClientId, out _))
+        {
+            _validationTextBlock.Text = "Dataverse client ID must be a valid GUID.";
+            return;
+        }
+
+        var powerAutomateClientId = _powerAutomateClientIdTextBox.Text?.Trim() ?? string.Empty;
+        if (!Guid.TryParse(powerAutomateClientId, out _))
+        {
+            _validationTextBlock.Text = "Power Automate client ID must be a valid GUID.";
+            return;
+        }
+
         var logVerbosity = _logVerbosityComboBox.SelectedItem is LogVerbosity selectedVerbosity
             ? selectedVerbosity
             : LogVerbosity.Info;
@@ -69,6 +91,8 @@ public sealed partial class SettingsDialog : Window
             (int)defaultRunCount.Value,
             (int)maxRunsToQuery.Value,
             _useFlowRunHistoryTableCheckBox.IsChecked == true,
+            dataverseClientId,
+            powerAutomateClientId,
             logVerbosity));
     }
 }
@@ -77,4 +101,6 @@ public sealed record SettingsDialogResult(
     int DefaultRunCount,
     int MaxRunsToQuery,
     bool UseFlowRunHistoryTable,
+    string DataverseClientId,
+    string PowerAutomateClientId,
     LogVerbosity LogVerbosity);

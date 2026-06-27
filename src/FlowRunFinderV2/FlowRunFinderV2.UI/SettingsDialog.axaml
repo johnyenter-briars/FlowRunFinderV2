@@ -2,12 +2,12 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="FlowRunFinderV2.UI.SettingsDialog"
         Title="Settings"
-        Width="420"
-        Height="340"
+        Width="560"
+        Height="430"
         MinWidth="380"
         MinHeight="200"
         WindowStartupLocation="CenterOwner">
-  <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*" ColumnDefinitions="Auto,*" Margin="16" RowSpacing="10" ColumnSpacing="10">
+  <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,*" ColumnDefinitions="Auto,*" Margin="16" RowSpacing="10" ColumnSpacing="10">
     <TextBlock Text="Default runs"
                VerticalAlignment="Center" />
     <NumericUpDown x:Name="DefaultRunCountNumeric"
@@ -31,18 +31,32 @@
               Content="Use flow run history table" />
 
     <TextBlock Grid.Row="3"
+               Text="Dataverse client ID"
+               VerticalAlignment="Center" />
+    <TextBox x:Name="DataverseClientIdTextBox"
+             Grid.Row="3"
+             Grid.Column="1" />
+
+    <TextBlock Grid.Row="4"
+               Text="Power Automate client ID"
+               VerticalAlignment="Center" />
+    <TextBox x:Name="PowerAutomateClientIdTextBox"
+             Grid.Row="4"
+             Grid.Column="1" />
+
+    <TextBlock Grid.Row="5"
                Text="Log mode"
                VerticalAlignment="Center" />
     <ComboBox x:Name="LogVerbosityComboBox"
-              Grid.Row="3"
+              Grid.Row="5"
               Grid.Column="1" />
 
     <TextBlock x:Name="ValidationTextBlock"
-               Grid.Row="4"
+               Grid.Row="6"
                Grid.ColumnSpan="2"
                Foreground="{DynamicResource SystemControlErrorTextForegroundBrush}" />
 
-    <StackPanel Grid.Row="5"
+    <StackPanel Grid.Row="7"
                 Grid.ColumnSpan="2"
                 Orientation="Horizontal"
                 HorizontalAlignment="Right"

@@ -4,20 +4,31 @@ namespace FlowRunFinderV2.Core.Auth;
 
 public sealed class PowerAutomateAuthService
 {
-    private const string ClientId = "1950a258-227b-4e31-a9cf-717495945fc2";
     private static readonly string[] Scopes = { "https://service.flow.microsoft.com/user_impersonation" };
 
     private readonly IPublicClientApplication _app;
 
     public PowerAutomateAuthService(TokenCacheOptions tokenCacheOptions)
-        : this((tokenCacheOptions ?? throw new ArgumentNullException(nameof(tokenCacheOptions))).PowerAutomateTokenCachePath)
+        : this(tokenCacheOptions, AuthenticationClientIds.PowerAutomate)
+    {
+    }
+
+    public PowerAutomateAuthService(TokenCacheOptions tokenCacheOptions, string? clientId)
+        : this(
+            (tokenCacheOptions ?? throw new ArgumentNullException(nameof(tokenCacheOptions))).PowerAutomateTokenCachePath,
+            clientId)
     {
     }
 
     public PowerAutomateAuthService(string? tokenCachePath = null)
+        : this(tokenCachePath, AuthenticationClientIds.PowerAutomate)
+    {
+    }
+
+    public PowerAutomateAuthService(string? tokenCachePath, string? clientId)
     {
         _app = PublicClientApplicationBuilder
-            .Create(ClientId)
+            .Create(NormalizeClientId(clientId, AuthenticationClientIds.PowerAutomate))
             .WithAuthority(AadAuthorityAudience.AzureAdMultipleOrgs)
             .WithDefaultRedirectUri()
             .Build();
@@ -32,6 +43,13 @@ public sealed class PowerAutomateAuthService
         {
             TokenCacheProvider.RegisterPath(_app.UserTokenCache, tokenCachePath!);
         }
+    }
+
+    private static string NormalizeClientId(string? clientId, string defaultClientId)
+    {
+        return string.IsNullOrWhiteSpace(clientId)
+            ? defaultClientId
+            : clientId.Trim();
     }
 
     public async Task<AuthResult> GetTokenAsync(
