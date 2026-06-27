@@ -6,8 +6,6 @@ namespace FlowRunFinderV2.Core.Query;
 
 public sealed class FlowRunQueryEngine
 {
-    private const int AdvancedSearchRunLimit = 1000;
-
     private readonly PowerAutomateClient _client;
     private readonly AppLogger? _logger;
 
@@ -46,17 +44,23 @@ public sealed class FlowRunQueryEngine
         DateTimeOffset startUtc,
         DateTimeOffset endUtc,
         AdvancedSearchGroup filter,
+        int maxRunsToQuery,
         CancellationToken cancellationToken)
     {
+        if (maxRunsToQuery < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maxRunsToQuery), "Max runs to query must be at least 1.");
+        }
+
         var page = 0;
         var inspected = 0;
         var reachedOlderThanStart = false;
         var nextPage = await _client.GetRunsPageAsync(environmentId, flowId, cancellationToken).ConfigureAwait(false);
         var result = new List<FlowRun>();
 
-        _logger?.Info($"Advanced search query started. FlowId={flowId}; StartUtc={startUtc:O}; EndUtc={endUtc:O}; Filter={FormatFilter(filter)}; Limit={AdvancedSearchRunLimit}.");
+        _logger?.Info($"Advanced search query started. FlowId={flowId}; StartUtc={startUtc:O}; EndUtc={endUtc:O}; Filter={FormatFilter(filter)}; Limit={maxRunsToQuery}.");
 
-        while (inspected < AdvancedSearchRunLimit && !reachedOlderThanStart)
+        while (inspected < maxRunsToQuery && !reachedOlderThanStart)
         {
             page++;
             var pageRows = 0;
@@ -65,9 +69,9 @@ public sealed class FlowRunQueryEngine
             {
                 pageRows++;
                 inspected++;
-                if (inspected > AdvancedSearchRunLimit)
+                if (inspected > maxRunsToQuery)
                 {
-                    _logger?.Info($"Advanced search inspection limit reached. FlowId={flowId}; Limit={AdvancedSearchRunLimit}.");
+                    _logger?.Info($"Advanced search inspection limit reached. FlowId={flowId}; Limit={maxRunsToQuery}.");
                     break;
                 }
 

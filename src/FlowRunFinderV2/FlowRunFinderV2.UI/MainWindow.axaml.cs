@@ -97,12 +97,13 @@ public sealed partial class MainWindow : Window
         await _settingsManager.UpdateAsync(settings =>
         {
             settings.DefaultRunCount = result.DefaultRunCount;
+            settings.MaxRunsToQuery = result.MaxRunsToQuery;
             settings.LogVerbosity = result.LogVerbosity;
         });
         _settings = _settingsManager.Current;
         _logger.SetVerbosity(_settings.LogVerbosity);
-        _logger.Info($"Settings saved. DefaultRunCount={_settings.DefaultRunCount}; LogVerbosity={_settings.LogVerbosity}.");
-        SetStatus($"Settings saved. Default run query count is {_settings.DefaultRunCount}.");
+        _logger.Info($"Settings saved. DefaultRunCount={_settings.DefaultRunCount}; MaxRunsToQuery={_settings.MaxRunsToQuery}; LogVerbosity={_settings.LogVerbosity}.");
+        SetStatus($"Settings saved. Default run count is {_settings.DefaultRunCount}; max runs to query is {_settings.MaxRunsToQuery}.");
     }
 
     private void OnFlowPickerClicked(object? sender, RoutedEventArgs e)
@@ -476,6 +477,7 @@ public sealed partial class MainWindow : Window
                 request.StartUtc,
                 request.EndUtc,
                 request.Filter,
+                _settings.MaxRunsToQuery,
                 cancellationToken);
 
             var triggerKeys = new SortedSet<string>(AttributeNameComparer.Instance);
@@ -731,6 +733,7 @@ public sealed partial class MainWindow : Window
     private void NormalizeSettings()
     {
         _settings.DefaultRunCount = Math.Clamp(_settings.DefaultRunCount, 1, 100);
+        _settings.MaxRunsToQuery = Math.Max(_settings.MaxRunsToQuery, 1);
         if (!Enum.IsDefined(_settings.LogVerbosity))
         {
             _settings.LogVerbosity = LogVerbosity.Info;

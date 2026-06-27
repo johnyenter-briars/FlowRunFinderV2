@@ -8,6 +8,7 @@ namespace FlowRunFinderV2.UI;
 public sealed partial class SettingsDialog : Window
 {
     private NumericUpDown _defaultRunCountNumeric = null!;
+    private NumericUpDown _maxRunsToQueryNumeric = null!;
     private ComboBox _logVerbosityComboBox = null!;
     private TextBlock _validationTextBlock = null!;
 
@@ -16,6 +17,7 @@ public sealed partial class SettingsDialog : Window
         InitializeComponent();
         this.ApplyAppIcon();
         _defaultRunCountNumeric.Value = settings.DefaultRunCount;
+        _maxRunsToQueryNumeric.Value = settings.MaxRunsToQuery;
         _logVerbosityComboBox.ItemsSource = Enum.GetValues<LogVerbosity>();
         _logVerbosityComboBox.SelectedItem = settings.LogVerbosity;
     }
@@ -25,6 +27,8 @@ public sealed partial class SettingsDialog : Window
         AvaloniaXamlLoader.Load(this);
         _defaultRunCountNumeric = this.FindControl<NumericUpDown>("DefaultRunCountNumeric")
             ?? throw new InvalidOperationException("DefaultRunCountNumeric was not found.");
+        _maxRunsToQueryNumeric = this.FindControl<NumericUpDown>("MaxRunsToQueryNumeric")
+            ?? throw new InvalidOperationException("MaxRunsToQueryNumeric was not found.");
         _logVerbosityComboBox = this.FindControl<ComboBox>("LogVerbosityComboBox")
             ?? throw new InvalidOperationException("LogVerbosityComboBox was not found.");
         _validationTextBlock = this.FindControl<TextBlock>("ValidationTextBlock")
@@ -39,10 +43,17 @@ public sealed partial class SettingsDialog : Window
     private void OnSaveClicked(object? sender, RoutedEventArgs e)
     {
         _validationTextBlock.Text = string.Empty;
-        var value = _defaultRunCountNumeric.Value;
-        if (value is null or < 1 or > 100)
+        var defaultRunCount = _defaultRunCountNumeric.Value;
+        if (defaultRunCount is null or < 1 or > 100)
         {
             _validationTextBlock.Text = "Default runs must be between 1 and 100.";
+            return;
+        }
+
+        var maxRunsToQuery = _maxRunsToQueryNumeric.Value;
+        if (maxRunsToQuery is null or < 1)
+        {
+            _validationTextBlock.Text = "Max runs to query must be at least 1.";
             return;
         }
 
@@ -50,8 +61,8 @@ public sealed partial class SettingsDialog : Window
             ? selectedVerbosity
             : LogVerbosity.Info;
 
-        Close(new SettingsDialogResult((int)value.Value, logVerbosity));
+        Close(new SettingsDialogResult((int)defaultRunCount.Value, (int)maxRunsToQuery.Value, logVerbosity));
     }
 }
 
-public sealed record SettingsDialogResult(int DefaultRunCount, LogVerbosity LogVerbosity);
+public sealed record SettingsDialogResult(int DefaultRunCount, int MaxRunsToQuery, LogVerbosity LogVerbosity);
