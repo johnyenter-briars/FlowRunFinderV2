@@ -1,6 +1,6 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        x:Class="FlowRunFinderV2.UI.ConnectionSelectionDialog"
+        x:Class="FlowRunFinderV2.UI.Dialog.ConnectionSelectionDialog"
         Title="Connections"
         Width="560"
         Height="420"

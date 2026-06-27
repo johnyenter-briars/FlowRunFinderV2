@@ -3,10 +3,12 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using FlowRunFinderV2.Core.Configuration;
+using FlowRunFinderV2.UI;
+using FlowRunFinderV2.UI.Model;
 
-namespace FlowRunFinderV2.UI;
+namespace FlowRunFinderV2.UI.Dialog;
 
-public sealed partial class ConnectionSelectionDialog : Window
+public sealed partial class ConnectionSelectionDialog : Avalonia.Controls.Window
 {
     private ListBox _connectionsListBox = null!;
     private TextBlock _validationTextBlock = null!;
@@ -51,15 +53,5 @@ public sealed partial class ConnectionSelectionDialog : Window
     private void OnCancelClicked(object? sender, RoutedEventArgs e)
     {
         Close(null);
-    }
-}
-
-public sealed record ConnectionSelectionResult(bool CreateNew, ConnectionProfile? Connection)
-{
-    public static ConnectionSelectionResult New { get; } = new(true, null);
-
-    public static ConnectionSelectionResult Open(ConnectionProfile connection)
-    {
-        return new ConnectionSelectionResult(false, connection);
     }
 }

@@ -2,10 +2,12 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using FlowRunFinderV2.Core.Configuration;
+using FlowRunFinderV2.UI;
+using FlowRunFinderV2.UI.Model;
 
-namespace FlowRunFinderV2.UI;
+namespace FlowRunFinderV2.UI.Dialog;
 
-public sealed partial class SettingsDialog : Window
+public sealed partial class SettingsDialog : Avalonia.Controls.Window
 {
     private NumericUpDown _defaultRunCountNumeric = null!;
     private NumericUpDown _maxRunsToQueryNumeric = null!;
@@ -96,11 +98,3 @@ public sealed partial class SettingsDialog : Window
             logVerbosity));
     }
 }
-
-public sealed record SettingsDialogResult(
-    int DefaultRunCount,
-    int MaxRunsToQuery,
-    bool UseFlowRunHistoryTable,
-    string DataverseClientId,
-    string PowerAutomateClientId,
-    LogVerbosity LogVerbosity);

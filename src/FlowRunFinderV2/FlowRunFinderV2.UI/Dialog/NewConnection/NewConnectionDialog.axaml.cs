@@ -1,10 +1,12 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
+using FlowRunFinderV2.UI;
+using FlowRunFinderV2.UI.Model;
 
-namespace FlowRunFinderV2.UI;
+namespace FlowRunFinderV2.UI.Dialog;
 
-public sealed partial class NewConnectionDialog : Window
+public sealed partial class NewConnectionDialog : Avalonia.Controls.Window
 {
     private TextBox _nameTextBox = null!;
     private TextBox _environmentUrlTextBox = null!;
@@ -75,5 +77,3 @@ public sealed partial class NewConnectionDialog : Window
         return uri;
     }
 }
-
-public sealed record NewConnectionRequest(string Name, Uri EnvironmentUrl);

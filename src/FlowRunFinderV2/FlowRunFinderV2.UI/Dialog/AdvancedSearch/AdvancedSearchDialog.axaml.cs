@@ -7,11 +7,14 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Markup.Xaml;
 using Avalonia.Media;
+using FlowRunFinderV2.UI;
 using FlowRunFinderV2.Core.Query;
+using FlowRunFinderV2.UI.Infrastructure;
+using FlowRunFinderV2.UI.Model;
 
-namespace FlowRunFinderV2.UI;
+namespace FlowRunFinderV2.UI.Dialog;
 
-public sealed partial class AdvancedSearchDialog : Window
+public sealed partial class AdvancedSearchDialog : Avalonia.Controls.Window
 {
     private static readonly IReadOnlyList<AdvancedSearchOperatorOption> OperatorOptions =
     [
@@ -448,11 +451,4 @@ public sealed partial class AdvancedSearchDialog : Window
         _ = resourceKey;
         return SolidColorBrush.Parse(fallbackColor);
     }
-}
-
-public sealed record AdvancedSearchOperatorOption(
-    string Label,
-    AdvancedSearchComparisonOperator Operator)
-{
-    public override string ToString() => Label;
 }

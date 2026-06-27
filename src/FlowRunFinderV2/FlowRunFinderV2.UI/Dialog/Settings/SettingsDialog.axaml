@@ -1,6 +1,6 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        x:Class="FlowRunFinderV2.UI.SettingsDialog"
+        x:Class="FlowRunFinderV2.UI.Dialog.SettingsDialog"
         Title="Settings"
         Width="560"
         Height="430"
