@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Templates;
 using Avalonia.Data;
 using Avalonia.Data.Converters;
 using Avalonia.Input;
@@ -235,6 +236,27 @@ public sealed partial class MainWindow : Window
             });
             e.Handled = true;
         }
+    }
+
+    private async void OnCopyCellPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        var point = e.GetCurrentPoint(this);
+        if (!point.Properties.IsRightButtonPressed)
+        {
+            return;
+        }
+
+        if (sender is not TextBlock { Text: { } text } ||
+            string.IsNullOrWhiteSpace(text) ||
+            Clipboard is not { } clipboard)
+        {
+            return;
+        }
+
+        await clipboard.SetTextAsync(text);
+        ShowToast("Copied to clipboard");
+        SetStatus("Cell value copied.");
+        e.Handled = true;
     }
 
     private async Task SelectStartupConnectionAsync()
@@ -721,18 +743,31 @@ public sealed partial class MainWindow : Window
 
         foreach (var key in triggerKeys)
         {
-            RunsDataGrid.Columns.Add(new DataGridTextColumn
+            RunsDataGrid.Columns.Add(new DataGridTemplateColumn
             {
                 Header = key,
-                Binding = new Binding(nameof(FlowRun.TriggerInputs))
+                CellTemplate = CreateTriggerInputCellTemplate(key),
+                Width = DataGridLength.Auto
+            });
+        }
+    }
+
+    private IDataTemplate CreateTriggerInputCellTemplate(string key)
+    {
+        return new FuncDataTemplate<FlowRun>((_, _) =>
+        {
+            var textBlock = new TextBlock();
+            textBlock.Bind(
+                TextBlock.TextProperty,
+                new Binding(nameof(FlowRun.TriggerInputs))
                 {
                     Mode = BindingMode.OneWay,
                     Converter = TriggerInputValueConverter.Instance,
                     ConverterParameter = key
-                },
-                Width = DataGridLength.Auto
-            });
-        }
+                });
+            textBlock.PointerPressed += OnCopyCellPointerPressed;
+            return textBlock;
+        });
     }
 
     private async Task RunUiActionAsync(Func<CancellationToken, Task> action)

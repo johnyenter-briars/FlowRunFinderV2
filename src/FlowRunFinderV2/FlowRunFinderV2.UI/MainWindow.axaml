@@ -199,9 +199,30 @@
                 HeadersVisibility="Column"
                 CanUserResizeColumns="True">
       <DataGrid.Columns>
-        <DataGridTextColumn Header="Started" Binding="{Binding StartedOn}" Width="Auto" />
-        <DataGridTextColumn Header="Ended" Binding="{Binding EndedOn}" Width="Auto" />
-        <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="Auto" />
+        <DataGridTemplateColumn Header="Started" Width="Auto">
+          <DataGridTemplateColumn.CellTemplate>
+            <DataTemplate>
+              <TextBlock Text="{Binding StartedOn}"
+                         PointerPressed="OnCopyCellPointerPressed" />
+            </DataTemplate>
+          </DataGridTemplateColumn.CellTemplate>
+        </DataGridTemplateColumn>
+        <DataGridTemplateColumn Header="Ended" Width="Auto">
+          <DataGridTemplateColumn.CellTemplate>
+            <DataTemplate>
+              <TextBlock Text="{Binding EndedOn}"
+                         PointerPressed="OnCopyCellPointerPressed" />
+            </DataTemplate>
+          </DataGridTemplateColumn.CellTemplate>
+        </DataGridTemplateColumn>
+        <DataGridTemplateColumn Header="Status" Width="Auto">
+          <DataGridTemplateColumn.CellTemplate>
+            <DataTemplate>
+              <TextBlock Text="{Binding Status}"
+                         PointerPressed="OnCopyCellPointerPressed" />
+            </DataTemplate>
+          </DataGridTemplateColumn.CellTemplate>
+        </DataGridTemplateColumn>
         <DataGridTemplateColumn Header="Run Id" Width="Auto">
           <DataGridTemplateColumn.CellTemplate>
             <DataTemplate>
