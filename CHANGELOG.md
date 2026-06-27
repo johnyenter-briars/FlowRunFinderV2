@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.0
+## 1.0.2
 
 - Split the app into `FlowRunFinderV2.Core` and `FlowRunFinderV2.UI`, keeping Avalonia-specific code in UI and reusable auth, client, configuration, logging, model, and query logic in Core.
 - Retargeted Core to `.NET Standard 2.0` for .NET Framework 4.8 consumers such as XrmToolBox plugins.
