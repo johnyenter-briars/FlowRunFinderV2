@@ -355,18 +355,22 @@ public sealed partial class MainWindow : Window
 
             _flows.Clear();
             _runs.Clear();
+
             ResetRunColumns();
             ResetTriggerColumnOptions(clearKnownKeys: true);
             ClearSelectedFlow();
+
             RefreshRunsButton.IsEnabled = false;
             AdvancedSearchButton.IsEnabled = false;
             DeviceCodePanel.IsVisible = false;
 
             SetStatus("Authenticating...");
+
             var token = await _authService.GetTokenAsync(
                 _environmentUrl,
                 ShowDeviceCodePrompt,
                 cancellationToken);
+
             ClearDeviceCodePrompt();
 
             _client?.Dispose();
@@ -387,9 +391,11 @@ public sealed partial class MainWindow : Window
 
         _flows.Clear();
         _runs.Clear();
+
         ResetRunColumns();
         ResetTriggerColumnOptions(clearKnownKeys: true);
         ClearSelectedFlow();
+
         RefreshRunsButton.IsEnabled = false;
         AdvancedSearchButton.IsEnabled = false;
 
@@ -401,6 +407,7 @@ public sealed partial class MainWindow : Window
         }
 
         RefreshFilteredFlows();
+
         SetStatus($"Loaded {_flows.Count} cloud flows. Pick a flow to load the latest {_settings.DefaultRunCount} runs.");
     }
 
@@ -433,9 +440,8 @@ public sealed partial class MainWindow : Window
                 cancellationToken);
             ClearDeviceCodePrompt();
 
-            using var paClient = new PowerAutomateClient(paToken.AccessToken, _logger);
-            var queryEngine = new FlowRunQueryEngine(paClient, _logger);
-            var environmentId = await paClient.DetectEnvironmentIdAsync(_environmentUrl, cancellationToken);
+            using var queryEngine = new FlowRunQueryEngine(paToken.AccessToken, _client, _logger);
+            var environmentId = await queryEngine.DetectEnvironmentIdAsync(_environmentUrl, cancellationToken);
             _logger.Debug($"Detected Power Automate environment. EnvironmentId={environmentId ?? "<null>"}.");
             if (string.IsNullOrWhiteSpace(environmentId))
             {
@@ -443,33 +449,13 @@ public sealed partial class MainWindow : Window
                 return;
             }
 
-            IReadOnlyList<FlowRun> runs;
-            if (_settings.UseFlowRunHistoryTable)
-            {
-                if (_client is null)
-                {
-                    return;
-                }
-
-                runs = await _client.GetLatestFlowRunsAsync(
-                    flow.WorkflowId,
-                    _settings.DefaultRunCount,
-                    cancellationToken);
-
-                foreach (var run in runs)
-                {
-                    run.RunUrl = BuildRunUrl(environmentId, flow.WorkflowId, run.Name);
-                    await paClient.LoadTriggerOutputsAsync(environmentId, flow.WorkflowId, run, cancellationToken);
-                }
-            }
-            else
-            {
-                runs = await queryEngine.GetLatestRunsAsync(
+            var runs = await queryEngine.GetLatestRunsAsync(
+                new LatestFlowRunsRequest(
                     environmentId,
                     flow.WorkflowId,
                     _settings.DefaultRunCount,
-                    cancellationToken);
-            }
+                    _settings.UseFlowRunHistoryTable),
+                cancellationToken);
 
             var triggerKeys = new SortedSet<string>(AttributeNameComparer.Instance);
             foreach (var run in runs)
@@ -518,9 +504,8 @@ public sealed partial class MainWindow : Window
                 cancellationToken);
             ClearDeviceCodePrompt();
 
-            using var paClient = new PowerAutomateClient(paToken.AccessToken, _logger);
-            var queryEngine = new FlowRunQueryEngine(paClient, _logger);
-            var environmentId = await paClient.DetectEnvironmentIdAsync(_environmentUrl, cancellationToken);
+            using var queryEngine = new FlowRunQueryEngine(paToken.AccessToken, _client, _logger);
+            var environmentId = await queryEngine.DetectEnvironmentIdAsync(_environmentUrl, cancellationToken);
             _logger.Debug($"Detected Power Automate environment for advanced search. EnvironmentId={environmentId ?? "<null>"}.");
             if (string.IsNullOrWhiteSpace(environmentId))
             {
@@ -528,46 +513,16 @@ public sealed partial class MainWindow : Window
                 return;
             }
 
-            IReadOnlyList<FlowRun> runs;
-            if (_settings.UseFlowRunHistoryTable)
-            {
-                if (_client is null)
-                {
-                    return;
-                }
-
-                var candidateRuns = await _client.SearchFlowRunsAsync(
-                    flow.WorkflowId,
-                    request.StartUtc,
-                    request.EndUtc,
-                    _settings.MaxRunsToQuery,
-                    cancellationToken);
-
-                var matchedRuns = new List<FlowRun>();
-                foreach (var run in candidateRuns)
-                {
-                    run.RunUrl = BuildRunUrl(environmentId, flow.WorkflowId, run.Name);
-                    await paClient.LoadTriggerOutputsAsync(environmentId, flow.WorkflowId, run, cancellationToken);
-
-                    if (FlowRunQueryEngine.MatchesFilter(run, request.Filter))
-                    {
-                        matchedRuns.Add(run);
-                    }
-                }
-
-                runs = matchedRuns;
-            }
-            else
-            {
-                runs = await queryEngine.SearchRunsAsync(
+            var runs = await queryEngine.SearchRunsAsync(
+                new FlowRunSearchRequest(
                     environmentId,
                     flow.WorkflowId,
                     request.StartUtc,
                     request.EndUtc,
                     request.Filter,
                     _settings.MaxRunsToQuery,
-                    cancellationToken);
-            }
+                    _settings.UseFlowRunHistoryTable),
+                cancellationToken);
 
             var triggerKeys = new SortedSet<string>(AttributeNameComparer.Instance);
             foreach (var run in runs)
@@ -874,13 +829,6 @@ public sealed partial class MainWindow : Window
         });
 
         return string.Join($" {filter.LogicalOperator.ToString().ToUpperInvariant()} ", parts);
-    }
-
-    private static string? BuildRunUrl(string environmentId, Guid flowId, string? runName)
-    {
-        return string.IsNullOrWhiteSpace(runName)
-            ? null
-            : $"https://make.powerautomate.com/environments/{environmentId}/flows/{flowId:D}/runs/{runName}";
     }
 
     private void SetStatus(string message)
