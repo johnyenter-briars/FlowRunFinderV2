@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
+using FlowRunFinderV2.Core.Auth;
 using FlowRunFinderV2.Core.Configuration;
 using FlowRunFinderV2.UI;
 using FlowRunFinderV2.UI.Model;
@@ -12,6 +13,7 @@ public sealed partial class SettingsDialog : Avalonia.Controls.Window
     private NumericUpDown _defaultRunCountNumeric = null!;
     private NumericUpDown _maxRunsToQueryNumeric = null!;
     private CheckBox _useFlowRunHistoryTableCheckBox = null!;
+    private ComboBox _authenticationFlowComboBox = null!;
     private TextBox _dataverseClientIdTextBox = null!;
     private TextBox _powerAutomateClientIdTextBox = null!;
     private ComboBox _logVerbosityComboBox = null!;
@@ -24,6 +26,8 @@ public sealed partial class SettingsDialog : Avalonia.Controls.Window
         _defaultRunCountNumeric.Value = settings.DefaultRunCount;
         _maxRunsToQueryNumeric.Value = settings.MaxRunsToQuery;
         _useFlowRunHistoryTableCheckBox.IsChecked = settings.UseFlowRunHistoryTable;
+        _authenticationFlowComboBox.ItemsSource = Enum.GetValues<AuthenticationFlow>();
+        _authenticationFlowComboBox.SelectedItem = settings.AuthenticationFlow;
         _dataverseClientIdTextBox.Text = settings.DataverseClientId;
         _powerAutomateClientIdTextBox.Text = settings.PowerAutomateClientId;
         _logVerbosityComboBox.ItemsSource = Enum.GetValues<LogVerbosity>();
@@ -39,6 +43,8 @@ public sealed partial class SettingsDialog : Avalonia.Controls.Window
             ?? throw new InvalidOperationException("MaxRunsToQueryNumeric was not found.");
         _useFlowRunHistoryTableCheckBox = this.FindControl<CheckBox>("UseFlowRunHistoryTableCheckBox")
             ?? throw new InvalidOperationException("UseFlowRunHistoryTableCheckBox was not found.");
+        _authenticationFlowComboBox = this.FindControl<ComboBox>("AuthenticationFlowComboBox")
+            ?? throw new InvalidOperationException("AuthenticationFlowComboBox was not found.");
         _dataverseClientIdTextBox = this.FindControl<TextBox>("DataverseClientIdTextBox")
             ?? throw new InvalidOperationException("DataverseClientIdTextBox was not found.");
         _powerAutomateClientIdTextBox = this.FindControl<TextBox>("PowerAutomateClientIdTextBox")
@@ -88,11 +94,15 @@ public sealed partial class SettingsDialog : Avalonia.Controls.Window
         var logVerbosity = _logVerbosityComboBox.SelectedItem is LogVerbosity selectedVerbosity
             ? selectedVerbosity
             : LogVerbosity.Info;
+        var authenticationFlow = _authenticationFlowComboBox.SelectedItem is AuthenticationFlow selectedAuthenticationFlow
+            ? selectedAuthenticationFlow
+            : AuthenticationFlow.InteractiveBrowser;
 
         Close(new SettingsDialogResult(
             (int)defaultRunCount.Value,
             (int)maxRunsToQuery.Value,
             _useFlowRunHistoryTableCheckBox.IsChecked == true,
+            authenticationFlow,
             dataverseClientId,
             powerAutomateClientId,
             logVerbosity));

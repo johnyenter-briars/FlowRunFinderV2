@@ -1,0 +1,50 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="FlowRunFinderV2.UI.Dialog.DateTimePickerDialog"
+        Title="Pick Date And Time"
+        Width="360"
+        Height="260"
+        MinWidth="320"
+        MinHeight="240"
+        WindowStartupLocation="CenterOwner">
+  <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="16" RowSpacing="12">
+    <TextBlock Text="Date and time"
+               FontWeight="SemiBold" />
+
+    <Grid Grid.Row="1"
+          ColumnDefinitions="Auto,*"
+          RowDefinitions="Auto,Auto"
+          RowSpacing="8"
+          ColumnSpacing="10">
+      <TextBlock Text="Date"
+                 VerticalAlignment="Center"
+                 Foreground="{DynamicResource AppMutedTextBrush}" />
+      <DatePicker x:Name="DatePicker"
+                  Grid.Column="1" />
+
+      <TextBlock Grid.Row="1"
+                 Text="Time"
+                 VerticalAlignment="Center"
+                 Foreground="{DynamicResource AppMutedTextBrush}" />
+      <TimePicker x:Name="TimePicker"
+                  Grid.Row="1"
+                  Grid.Column="1"
+                  ClockIdentifier="24HourClock" />
+    </Grid>
+
+    <TextBlock x:Name="ValidationTextBlock"
+               Grid.Row="2"
+               Foreground="{DynamicResource SystemControlErrorTextForegroundBrush}" />
+
+    <StackPanel Grid.Row="3"
+                Orientation="Horizontal"
+                HorizontalAlignment="Right"
+                Spacing="8">
+      <Button Content="Cancel"
+              Click="OnCancelClicked" />
+      <Button Content="Apply"
+              Classes="primary"
+              Click="OnApplyClicked" />
+    </StackPanel>
+  </Grid>
+</Window>

@@ -73,6 +73,16 @@ public sealed partial class AdvancedSearchDialog : Avalonia.Controls.Window
         Close(null);
     }
 
+    private async void OnStartUtcPickerClicked(object? sender, RoutedEventArgs e)
+    {
+        await PickDateTimeAsync(_startUtcTextBox);
+    }
+
+    private async void OnEndUtcPickerClicked(object? sender, RoutedEventArgs e)
+    {
+        await PickDateTimeAsync(_endUtcTextBox);
+    }
+
     private void OnSearchClicked(object? sender, RoutedEventArgs e)
     {
         _validationTextBlock.Text = string.Empty;
@@ -104,6 +114,24 @@ public sealed partial class AdvancedSearchDialog : Avalonia.Controls.Window
         }
 
         Close(new AdvancedSearchRequest(startUtc, endUtc, filter));
+    }
+
+    private async Task PickDateTimeAsync(TextBox targetTextBox)
+    {
+        var initialValue = TryParseUtc(targetTextBox.Text, out var parsed)
+            ? parsed
+            : DateTimeOffset.UtcNow;
+
+        var dialog = new DateTimePickerDialog(initialValue);
+        var selectedValue = await dialog.ShowDialog<DateTimeOffset?>(this);
+        if (selectedValue is null)
+        {
+            return;
+        }
+
+        targetTextBox.Text = selectedValue.Value
+            .ToUniversalTime()
+            .ToString("O", CultureInfo.InvariantCulture);
     }
 
     private void RenderFilterBuilder()

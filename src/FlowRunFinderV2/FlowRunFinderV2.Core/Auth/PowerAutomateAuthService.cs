@@ -7,26 +7,38 @@ public sealed class PowerAutomateAuthService
     private static readonly string[] Scopes = { "https://service.flow.microsoft.com/user_impersonation" };
 
     private readonly IPublicClientApplication _app;
+    private readonly AuthenticationFlow _authenticationFlow;
 
     public PowerAutomateAuthService(TokenCacheOptions tokenCacheOptions)
-        : this(tokenCacheOptions, AuthenticationClientIds.PowerAutomate)
+        : this(tokenCacheOptions, AuthenticationClientIds.PowerAutomate, AuthenticationFlow.InteractiveBrowser)
     {
     }
 
-    public PowerAutomateAuthService(TokenCacheOptions tokenCacheOptions, string? clientId)
+    public PowerAutomateAuthService(
+        TokenCacheOptions tokenCacheOptions,
+        string? clientId,
+        AuthenticationFlow authenticationFlow = AuthenticationFlow.InteractiveBrowser)
         : this(
-            (tokenCacheOptions ?? throw new ArgumentNullException(nameof(tokenCacheOptions))).PowerAutomateTokenCachePath,
-            clientId)
+            authenticationFlow == AuthenticationFlow.DeviceCode
+                ? (tokenCacheOptions ?? throw new ArgumentNullException(nameof(tokenCacheOptions))).PowerAutomateTokenCachePath
+                : (tokenCacheOptions ?? throw new ArgumentNullException(nameof(tokenCacheOptions))).PowerAutomateInteractiveBrowserTokenCachePath,
+            clientId,
+            authenticationFlow)
     {
     }
 
     public PowerAutomateAuthService(string? tokenCachePath = null)
-        : this(tokenCachePath, AuthenticationClientIds.PowerAutomate)
+        : this(tokenCachePath, AuthenticationClientIds.PowerAutomate, AuthenticationFlow.InteractiveBrowser)
     {
     }
 
-    public PowerAutomateAuthService(string? tokenCachePath, string? clientId)
+    public PowerAutomateAuthService(
+        string? tokenCachePath,
+        string? clientId,
+        AuthenticationFlow authenticationFlow = AuthenticationFlow.InteractiveBrowser)
     {
+        ValidateAuthenticationFlow(authenticationFlow);
+        _authenticationFlow = authenticationFlow;
         _app = PublicClientApplicationBuilder
             .Create(NormalizeClientId(clientId, AuthenticationClientIds.PowerAutomate))
             .WithAuthority(AadAuthorityAudience.AzureAdMultipleOrgs)
@@ -35,13 +47,31 @@ public sealed class PowerAutomateAuthService
 
         if (string.IsNullOrWhiteSpace(tokenCachePath))
         {
-            TokenCacheProvider.Register(
-                _app.UserTokenCache,
-                TokenCacheOptions.DefaultPowerAutomateCacheFileName);
+            if (authenticationFlow == AuthenticationFlow.InteractiveBrowser)
+            {
+                TokenCacheProvider.RegisterEncryptedPath(
+                    _app.UserTokenCache,
+                    TokenCacheProvider.GetDefaultCachePath(
+                        Path.Combine(
+                            "auth",
+                            "interactivebrowser",
+                            "powerautomate",
+                            TokenCacheOptions.EncryptedCacheFileName)));
+            }
+            else
+            {
+                TokenCacheProvider.RegisterPath(
+                    _app.UserTokenCache,
+                    TokenCacheProvider.GetDefaultCachePath(
+                        Path.Combine(
+                            "auth",
+                            "devicecode",
+                            TokenCacheOptions.DefaultPowerAutomateCacheFileName)));
+            }
         }
         else
         {
-            TokenCacheProvider.RegisterPath(_app.UserTokenCache, tokenCachePath!);
+            RegisterTokenCache(_app.UserTokenCache, tokenCachePath!, authenticationFlow);
         }
     }
 
@@ -68,15 +98,64 @@ public sealed class PowerAutomateAuthService
         }
         catch (MsalUiRequiredException)
         {
-            var device = await _app.AcquireTokenWithDeviceCode(Scopes, prompt =>
-                {
-                    showPrompt(new DeviceCodePrompt(prompt.VerificationUrl, prompt.UserCode, prompt.Message));
-                    return Task.CompletedTask;
-                })
-                .ExecuteAsync(cancellationToken)
-                .ConfigureAwait(false);
+            switch (_authenticationFlow)
+            {
+                case AuthenticationFlow.InteractiveBrowser:
+                    return await AcquireWithInteractiveBrowserAsync(cancellationToken)
+                        .ConfigureAwait(false);
+                case AuthenticationFlow.DeviceCode:
+                    return await AcquireWithDeviceCodeAsync(showPrompt, cancellationToken).ConfigureAwait(false);
+                default:
+                    throw new InvalidOperationException($"Unsupported authentication flow: {_authenticationFlow}.");
+            }
+        }
+    }
 
-            return new AuthResult(device.AccessToken, device.ExpiresOn);
+    private async Task<AuthResult> AcquireWithInteractiveBrowserAsync(CancellationToken cancellationToken)
+    {
+        var interactive = await _app.AcquireTokenInteractive(Scopes)
+            .WithUseEmbeddedWebView(false)
+            .ExecuteAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return new AuthResult(interactive.AccessToken, interactive.ExpiresOn);
+    }
+
+    private async Task<AuthResult> AcquireWithDeviceCodeAsync(
+        Action<DeviceCodePrompt> showPrompt,
+        CancellationToken cancellationToken)
+    {
+        var deviceCode = await _app.AcquireTokenWithDeviceCode(Scopes, prompt =>
+            {
+                showPrompt(new DeviceCodePrompt(prompt.VerificationUrl, prompt.UserCode, prompt.Message));
+                return Task.CompletedTask;
+            })
+            .ExecuteAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return new AuthResult(deviceCode.AccessToken, deviceCode.ExpiresOn);
+    }
+
+    private static void RegisterTokenCache(
+        ITokenCache tokenCache,
+        string tokenCachePath,
+        AuthenticationFlow authenticationFlow)
+    {
+        if (authenticationFlow == AuthenticationFlow.InteractiveBrowser)
+        {
+            TokenCacheProvider.RegisterEncryptedPath(tokenCache, tokenCachePath);
+            return;
+        }
+
+        TokenCacheProvider.RegisterPath(tokenCache, tokenCachePath);
+    }
+
+    private static void ValidateAuthenticationFlow(AuthenticationFlow authenticationFlow)
+    {
+        if (authenticationFlow != AuthenticationFlow.InteractiveBrowser &&
+            authenticationFlow != AuthenticationFlow.DeviceCode)
+        {
+            throw new ArgumentOutOfRangeException(nameof(authenticationFlow), authenticationFlow, "Unsupported authentication flow.");
         }
     }
 }

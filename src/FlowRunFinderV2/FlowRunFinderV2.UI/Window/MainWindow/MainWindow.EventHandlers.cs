@@ -37,6 +37,7 @@ public sealed partial class MainWindow
             settings.DefaultRunCount = result.DefaultRunCount;
             settings.MaxRunsToQuery = result.MaxRunsToQuery;
             settings.UseFlowRunHistoryTable = result.UseFlowRunHistoryTable;
+            settings.AuthenticationFlow = result.AuthenticationFlow;
             settings.DataverseClientId = result.DataverseClientId;
             settings.PowerAutomateClientId = result.PowerAutomateClientId;
             settings.LogVerbosity = result.LogVerbosity;
@@ -49,7 +50,7 @@ public sealed partial class MainWindow
         }
 
         _logger.SetVerbosity(_settings.LogVerbosity);
-        _logger.Info($"Settings saved. DefaultRunCount={_settings.DefaultRunCount}; MaxRunsToQuery={_settings.MaxRunsToQuery}; UseFlowRunHistoryTable={_settings.UseFlowRunHistoryTable}; DataverseClientId={_settings.DataverseClientId}; PowerAutomateClientId={_settings.PowerAutomateClientId}; LogVerbosity={_settings.LogVerbosity}.");
+        _logger.Info($"Settings saved. DefaultRunCount={_settings.DefaultRunCount}; MaxRunsToQuery={_settings.MaxRunsToQuery}; UseFlowRunHistoryTable={_settings.UseFlowRunHistoryTable}; AuthenticationFlow={_settings.AuthenticationFlow}; DataverseClientId={_settings.DataverseClientId}; PowerAutomateClientId={_settings.PowerAutomateClientId}; LogVerbosity={_settings.LogVerbosity}.");
         SetStatus($"Settings saved. Default run count is {_settings.DefaultRunCount}; max runs to query is {_settings.MaxRunsToQuery}.");
     }
 

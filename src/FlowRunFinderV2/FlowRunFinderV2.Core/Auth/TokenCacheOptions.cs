@@ -4,6 +4,7 @@ public sealed class TokenCacheOptions
 {
     public const string DefaultDataverseCacheFileName = "dataverse_msal_cache.bin3";
     public const string DefaultPowerAutomateCacheFileName = "power_automate_msal_cache.bin3";
+    public const string EncryptedCacheFileName = "msalcache.dat";
 
     public TokenCacheOptions(
         string cacheDirectory,
@@ -24,6 +25,11 @@ public sealed class TokenCacheOptions
     public string DataverseCacheFileName { get; }
     public string PowerAutomateCacheFileName { get; }
 
-    public string DataverseTokenCachePath => Path.Combine(CacheDirectory, DataverseCacheFileName);
-    public string PowerAutomateTokenCachePath => Path.Combine(CacheDirectory, PowerAutomateCacheFileName);
+    public string DeviceCodeCacheDirectory => Path.Combine(CacheDirectory, "auth", "devicecode");
+    public string InteractiveBrowserCacheDirectory => Path.Combine(CacheDirectory, "auth", "interactivebrowser");
+
+    public string DataverseTokenCachePath => Path.Combine(DeviceCodeCacheDirectory, DataverseCacheFileName);
+    public string PowerAutomateTokenCachePath => Path.Combine(DeviceCodeCacheDirectory, PowerAutomateCacheFileName);
+    public string DataverseInteractiveBrowserTokenCachePath => Path.Combine(InteractiveBrowserCacheDirectory, "dataverse", EncryptedCacheFileName);
+    public string PowerAutomateInteractiveBrowserTokenCachePath => Path.Combine(InteractiveBrowserCacheDirectory, "powerautomate", EncryptedCacheFileName);
 }

@@ -6,5 +6,6 @@
 - Retargeted Core to `.NET Standard 2.0` for .NET Framework 4.8 consumers such as XrmToolBox plugins.
 - Added configurable token cache locations through `TokenCacheOptions` so callers can choose where MSAL cache files are stored.
 - Added settings for default run count, max runs to query, log verbosity, configurable Dataverse and Power Automate client IDs, and the flow run history table toggle.
+- Added configurable MSAL auth flows with isolated token caches for interactive browser and in-app device-code authentication for Dataverse and Power Automate.
 - Added advanced-search support for the `flowruns` table path, including time-window filtering and trigger-input matching.
 - Added right-click copy behavior for run links and grid cell values, with toast notifications.

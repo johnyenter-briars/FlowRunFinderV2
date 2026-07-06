@@ -12,7 +12,11 @@ public sealed partial class MainWindow
 {
     private async Task SelectStartupConnectionAsync()
     {
-        await ShowConnectionSelectionAsync(forceSelection: true);
+        await ShowConnectionSelectionAsync(forceSelection: false);
+        if (_currentConnection is null)
+        {
+            SetStatus("No connection selected. Open Settings to change defaults, or create/switch a connection when ready.");
+        }
     }
 
     private async Task ShowConnectionSelectionAsync(bool forceSelection)
@@ -172,7 +176,7 @@ public sealed partial class MainWindow
         _settings.MaxRunsToQuery = Math.Max(_settings.MaxRunsToQuery, 1);
         if (!Guid.TryParse(_settings.DataverseClientId, out _))
         {
-            _settings.DataverseClientId = AuthenticationClientIds.Dataverse;
+            _settings.DataverseClientId = AuthenticationClientIds.PowerAutomate;
         }
 
         if (!Guid.TryParse(_settings.PowerAutomateClientId, out _))
@@ -184,12 +188,23 @@ public sealed partial class MainWindow
         {
             _settings.LogVerbosity = LogVerbosity.Info;
         }
+
+        if (!Enum.IsDefined(_settings.AuthenticationFlow))
+        {
+            _settings.AuthenticationFlow = AuthenticationFlow.InteractiveBrowser;
+        }
     }
 
     private void ConfigureAuthServices(ConnectionProfile connection)
     {
         var tokenCacheOptions = new TokenCacheOptions(_appDataStore.GetConnectionFolder(connection.Id));
-        _authService = new DataverseAuthService(tokenCacheOptions, _settings.DataverseClientId);
-        _powerAutomateAuthService = new PowerAutomateAuthService(tokenCacheOptions, _settings.PowerAutomateClientId);
+        _authService = new DataverseAuthService(
+            tokenCacheOptions,
+            _settings.DataverseClientId,
+            _settings.AuthenticationFlow);
+        _powerAutomateAuthService = new PowerAutomateAuthService(
+            tokenCacheOptions,
+            _settings.PowerAutomateClientId,
+            _settings.AuthenticationFlow);
     }
 }

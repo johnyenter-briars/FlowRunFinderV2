@@ -16,7 +16,7 @@ It is useful when you know a flow ran, but need to answer questions like:
 
 ## Features
 
-- Named Dataverse/Power Platform connections with cached device-code auth.
+- Named Dataverse/Power Platform connections with cached MSAL auth.
 - Recent Power Automate run history loaded directly from the environment API.
 - Dynamic trigger-output columns, remembered per flow.
 - Searchable flow and trigger-field pickers.
@@ -40,7 +40,7 @@ For a new connection, enter:
 - a friendly name, like `prod` or `uat`
 - the Dataverse environment URL, like `https://contoso.crm.dynamics.com`
 
-The app will show a Microsoft device login URL and code. Open the URL in your browser, enter the code, and finish signing in.
+By default, the app uses MSAL interactive browser authentication with a persisted encrypted token cache. Device-code authentication remains available in Settings for environments where the browser flow is not preferred.
 
 Connection metadata and token caches are stored locally under:
 
@@ -95,7 +95,7 @@ Notable files and folders:
 
 | Namespace | Description |
 | --- | --- |
-| `FlowRunFinderV2.Core.Auth` | Microsoft device-code authentication, configurable public client IDs, and token cache wiring through [MSAL.NET](https://learn.microsoft.com/entra/msal/dotnet/). |
+| `FlowRunFinderV2.Core.Auth` | MSAL authentication for interactive browser and in-app device-code flows, configurable public client IDs, and isolated token cache wiring through [MSAL.NET](https://learn.microsoft.com/entra/msal/dotnet/). |
 | `FlowRunFinderV2.Core.Client` | API clients for [Dataverse](https://learn.microsoft.com/power-apps/developer/data-platform/) flow metadata and [Power Automate](https://www.microsoft.com/power-platform/products/power-automate) run history. |
 | `FlowRunFinderV2.Core.Configuration` | Local connection profiles and app settings. |
 | `FlowRunFinderV2.Core.Logging` | Local file logging. |

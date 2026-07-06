@@ -5,41 +5,71 @@ namespace FlowRunFinderV2.Core.Auth;
 public sealed class DataverseAuthService
 {
     private readonly IPublicClientApplication _app;
+    private readonly AuthenticationFlow _authenticationFlow;
 
     public DataverseAuthService(TokenCacheOptions tokenCacheOptions)
-        : this(tokenCacheOptions, AuthenticationClientIds.Dataverse)
+        : this(tokenCacheOptions, AuthenticationClientIds.PowerAutomate, AuthenticationFlow.InteractiveBrowser)
     {
     }
 
-    public DataverseAuthService(TokenCacheOptions tokenCacheOptions, string? clientId)
+    public DataverseAuthService(
+        TokenCacheOptions tokenCacheOptions,
+        string? clientId,
+        AuthenticationFlow authenticationFlow = AuthenticationFlow.InteractiveBrowser)
         : this(
-            (tokenCacheOptions ?? throw new ArgumentNullException(nameof(tokenCacheOptions))).DataverseTokenCachePath,
-            clientId)
+            authenticationFlow == AuthenticationFlow.DeviceCode
+                ? (tokenCacheOptions ?? throw new ArgumentNullException(nameof(tokenCacheOptions))).DataverseTokenCachePath
+                : (tokenCacheOptions ?? throw new ArgumentNullException(nameof(tokenCacheOptions))).DataverseInteractiveBrowserTokenCachePath,
+            clientId,
+            authenticationFlow)
     {
     }
 
     public DataverseAuthService(string? tokenCachePath = null)
-        : this(tokenCachePath, AuthenticationClientIds.Dataverse)
+        : this(tokenCachePath, AuthenticationClientIds.PowerAutomate, AuthenticationFlow.InteractiveBrowser)
     {
     }
 
-    public DataverseAuthService(string? tokenCachePath, string? clientId)
+    public DataverseAuthService(
+        string? tokenCachePath,
+        string? clientId,
+        AuthenticationFlow authenticationFlow = AuthenticationFlow.InteractiveBrowser)
     {
+        ValidateAuthenticationFlow(authenticationFlow);
+        _authenticationFlow = authenticationFlow;
         _app = PublicClientApplicationBuilder
-            .Create(NormalizeClientId(clientId, AuthenticationClientIds.Dataverse))
+            .Create(NormalizeClientId(clientId, AuthenticationClientIds.PowerAutomate))
             .WithAuthority(AadAuthorityAudience.AzureAdMultipleOrgs)
             .WithDefaultRedirectUri()
             .Build();
 
         if (string.IsNullOrWhiteSpace(tokenCachePath))
         {
-            TokenCacheProvider.Register(
-                _app.UserTokenCache,
-                TokenCacheOptions.DefaultDataverseCacheFileName);
+            if (authenticationFlow == AuthenticationFlow.InteractiveBrowser)
+            {
+                TokenCacheProvider.RegisterEncryptedPath(
+                    _app.UserTokenCache,
+                    TokenCacheProvider.GetDefaultCachePath(
+                        Path.Combine(
+                            "auth",
+                            "interactivebrowser",
+                            "dataverse",
+                            TokenCacheOptions.EncryptedCacheFileName)));
+            }
+            else
+            {
+                TokenCacheProvider.RegisterPath(
+                    _app.UserTokenCache,
+                    TokenCacheProvider.GetDefaultCachePath(
+                        Path.Combine(
+                            "auth",
+                            "devicecode",
+                            TokenCacheOptions.DefaultDataverseCacheFileName)));
+            }
         }
         else
         {
-            TokenCacheProvider.RegisterPath(_app.UserTokenCache, tokenCachePath!);
+            RegisterTokenCache(_app.UserTokenCache, tokenCachePath!, authenticationFlow);
         }
     }
 
@@ -68,15 +98,67 @@ public sealed class DataverseAuthService
         }
         catch (MsalUiRequiredException)
         {
-            var interactive = await _app.AcquireTokenWithDeviceCode(scopes, prompt =>
-                {
-                    showPrompt(new DeviceCodePrompt(prompt.VerificationUrl, prompt.UserCode, prompt.Message));
-                    return Task.CompletedTask;
-                })
-                .ExecuteAsync(cancellationToken)
-                .ConfigureAwait(false);
+            switch (_authenticationFlow)
+            {
+                case AuthenticationFlow.InteractiveBrowser:
+                    return await AcquireWithInteractiveBrowserAsync(scopes, cancellationToken)
+                        .ConfigureAwait(false);
+                case AuthenticationFlow.DeviceCode:
+                    return await AcquireWithDeviceCodeAsync(scopes, showPrompt, cancellationToken).ConfigureAwait(false);
+                default:
+                    throw new InvalidOperationException($"Unsupported authentication flow: {_authenticationFlow}.");
+            }
+        }
+    }
 
-            return new AuthResult(interactive.AccessToken, interactive.ExpiresOn);
+    private async Task<AuthResult> AcquireWithInteractiveBrowserAsync(
+        string[] scopes,
+        CancellationToken cancellationToken)
+    {
+        var interactive = await _app.AcquireTokenInteractive(scopes)
+            .WithUseEmbeddedWebView(false)
+            .ExecuteAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return new AuthResult(interactive.AccessToken, interactive.ExpiresOn);
+    }
+
+    private async Task<AuthResult> AcquireWithDeviceCodeAsync(
+        string[] scopes,
+        Action<DeviceCodePrompt> showPrompt,
+        CancellationToken cancellationToken)
+    {
+        var deviceCode = await _app.AcquireTokenWithDeviceCode(scopes, prompt =>
+            {
+                showPrompt(new DeviceCodePrompt(prompt.VerificationUrl, prompt.UserCode, prompt.Message));
+                return Task.CompletedTask;
+            })
+            .ExecuteAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return new AuthResult(deviceCode.AccessToken, deviceCode.ExpiresOn);
+    }
+
+    private static void RegisterTokenCache(
+        ITokenCache tokenCache,
+        string tokenCachePath,
+        AuthenticationFlow authenticationFlow)
+    {
+        if (authenticationFlow == AuthenticationFlow.InteractiveBrowser)
+        {
+            TokenCacheProvider.RegisterEncryptedPath(tokenCache, tokenCachePath);
+            return;
+        }
+
+        TokenCacheProvider.RegisterPath(tokenCache, tokenCachePath);
+    }
+
+    private static void ValidateAuthenticationFlow(AuthenticationFlow authenticationFlow)
+    {
+        if (authenticationFlow != AuthenticationFlow.InteractiveBrowser &&
+            authenticationFlow != AuthenticationFlow.DeviceCode)
+        {
+            throw new ArgumentOutOfRangeException(nameof(authenticationFlow), authenticationFlow, "Unsupported authentication flow.");
         }
     }
 }
