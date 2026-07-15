@@ -231,7 +231,7 @@ public sealed class FlowRunQueryEngine : IDisposable
                 if (MatchesFilter(flowRun, filter, out var criteriaDiagnostic))
                 {
                     result.Add(flowRun);
-                    _logger?.Debug($"Advanced search matched run. FlowId={flowId}; RunName={flowRun.Name}; StartedUtc={startedUtc:O}; TriggerKeys={flowRun.TriggerInputs.Count}.");
+                    _logger?.Debug($"Advanced search matched run. FlowId={flowId}; RunName={flowRun.Name}; StartedUtc={startedUtc:O}; Reason={criteriaDiagnostic}; TriggerKeys={flowRun.TriggerInputs.Count}.");
                 }
                 else
                 {
@@ -298,7 +298,7 @@ public sealed class FlowRunQueryEngine : IDisposable
             if (MatchesFilter(run, filter, out var criteriaDiagnostic))
             {
                 result.Add(run);
-                _logger?.Debug($"Dataverse advanced search matched run. FlowId={flowId}; RunName={run.Name}; StartedUtc={FormatDateTimeOffset(run.StartedOn)}; TriggerKeys={run.TriggerInputs.Count}.");
+                _logger?.Debug($"Dataverse advanced search matched run. FlowId={flowId}; RunName={run.Name}; StartedUtc={FormatDateTimeOffset(run.StartedOn)}; Reason={criteriaDiagnostic}; TriggerKeys={run.TriggerInputs.Count}.");
             }
             else
             {
