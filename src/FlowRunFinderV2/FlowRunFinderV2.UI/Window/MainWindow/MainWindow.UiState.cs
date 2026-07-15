@@ -1,10 +1,11 @@
 using Avalonia.Threading;
+using FlowRunFinderV2.Core.Query;
 
 namespace FlowRunFinderV2.UI.Window;
 
 public sealed partial class MainWindow
 {
-    private async Task RunUiActionAsync(Func<CancellationToken, Task> action)
+    private async Task RunUiActionAsync(Func<CancellationToken, Task> action, bool canCancel = false)
     {
         NewConnectionButton.IsEnabled = false;
         SwitchConnectionButton.IsEnabled = false;
@@ -13,10 +14,23 @@ public sealed partial class MainWindow
         AdvancedSearchButton.IsEnabled = false;
         BeginBusy();
 
+        FlowRunQuerySession? querySession = null;
         try
         {
-            using var cancellationTokenSource = new CancellationTokenSource();
-            await action(cancellationTokenSource.Token);
+            if (canCancel)
+            {
+                querySession = new FlowRunQuerySession();
+                _activeQuerySession = querySession;
+                CancelBusyActionButton.IsVisible = true;
+                CancelBusyActionButton.IsEnabled = true;
+            }
+
+            await action(querySession?.CancellationToken ?? CancellationToken.None);
+        }
+        catch (OperationCanceledException) when (querySession?.IsCancellationRequested == true)
+        {
+            SetStatus("Query canceled.");
+            _logger.Info("Query canceled by user.");
         }
         catch (Exception ex)
         {
@@ -29,8 +43,23 @@ public sealed partial class MainWindow
             NewConnectionButton.IsEnabled = true;
             SwitchConnectionButton.IsEnabled = true;
             SettingsButton.IsEnabled = true;
+            if (_triggerColumnOptions.Count == 0 &&
+                _knownTriggerKeys.Count > 0 &&
+                _selectedFlow is { } selectedFlow)
+            {
+                RestoreTriggerColumnOptions(selectedFlow);
+            }
+
             RefreshRunsButton.IsEnabled = _client is not null && _selectedFlow is not null;
-            AdvancedSearchButton.IsEnabled = _triggerColumnOptions.Count > 0;
+            AdvancedSearchButton.IsEnabled = _knownTriggerKeys.Count > 0;
+            CancelBusyActionButton.IsVisible = false;
+            CancelBusyActionButton.IsEnabled = false;
+            if (ReferenceEquals(_activeQuerySession, querySession))
+            {
+                _activeQuerySession = null;
+            }
+
+            querySession?.Dispose();
         }
     }
 

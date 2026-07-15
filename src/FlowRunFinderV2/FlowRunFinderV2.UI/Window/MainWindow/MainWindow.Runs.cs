@@ -141,7 +141,7 @@ public sealed partial class MainWindow
             RefreshRunsButton.IsEnabled = true;
             _logger.Info($"Advanced search finished. FlowId={flow.WorkflowId}; ResultCount={_runs.Count}; TriggerKeys={triggerKeys.Count}.");
             SetStatus($"Found {_runs.Count} runs for {flow.Name}.");
-        });
+        }, canCancel: true);
     }
 
     private void CacheAdvancedSearchState(Guid workflowId, AdvancedSearchRequest request)

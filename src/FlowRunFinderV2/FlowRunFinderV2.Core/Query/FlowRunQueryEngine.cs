@@ -53,6 +53,18 @@ public sealed class FlowRunQueryEngine : IDisposable
                 .ConfigureAwait(false);
     }
 
+    public Task<IReadOnlyList<FlowRun>> GetLatestRunsAsync(
+        LatestFlowRunsRequest request,
+        FlowRunQuerySession querySession)
+    {
+        if (querySession is null)
+        {
+            throw new ArgumentNullException(nameof(querySession));
+        }
+
+        return GetLatestRunsAsync(request, querySession.CancellationToken);
+    }
+
     public async Task<IReadOnlyList<FlowRun>> SearchRunsAsync(
         FlowRunSearchRequest request,
         CancellationToken cancellationToken)
@@ -82,6 +94,18 @@ public sealed class FlowRunQueryEngine : IDisposable
                     request.MaxRunsToQuery,
                     cancellationToken)
                 .ConfigureAwait(false);
+    }
+
+    public Task<IReadOnlyList<FlowRun>> SearchRunsAsync(
+        FlowRunSearchRequest request,
+        FlowRunQuerySession querySession)
+    {
+        if (querySession is null)
+        {
+            throw new ArgumentNullException(nameof(querySession));
+        }
+
+        return SearchRunsAsync(request, querySession.CancellationToken);
     }
 
     public async Task<string?> DetectEnvironmentIdAsync(Uri environmentUrl, CancellationToken cancellationToken)
@@ -165,11 +189,13 @@ public sealed class FlowRunQueryEngine : IDisposable
 
         while (inspected < maxRunsToQuery && !reachedOlderThanStart)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             page++;
             var pageRows = 0;
 
             foreach (var run in nextPage.Runs)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 pageRows++;
                 inspected++;
                 if (inspected > maxRunsToQuery)
@@ -220,7 +246,9 @@ public sealed class FlowRunQueryEngine : IDisposable
                 break;
             }
 
-            nextPage = await _client.GetRunsPageAsync(nextPage.NextLink, cancellationToken).ConfigureAwait(false);
+            var nextLink = nextPage.NextLink!;
+            cancellationToken.ThrowIfCancellationRequested();
+            nextPage = await _client.GetRunsPageAsync(nextLink, cancellationToken).ConfigureAwait(false);
         }
 
         _logger?.Info($"Advanced search query finished. FlowId={flowId}; Inspected={inspected}; Matches={result.Count}; StoppedOlderThanStart={reachedOlderThanStart}.");
@@ -261,6 +289,7 @@ public sealed class FlowRunQueryEngine : IDisposable
         var result = new List<FlowRun>();
         foreach (var run in candidateRuns)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             run.RunUrl = BuildRunUrl(environmentId, flowId, run.Name);
             _logger?.Debug($"Loading trigger inputs for Dataverse run candidate. FlowId={flowId}; RunName={run.Name ?? "<null>"}; StartedUtc={run.StartedOn?.ToString("O") ?? "<null>"}; Status={run.Status ?? "<null>"}.");
             await _client.LoadTriggerOutputsAsync(environmentId, flowId, run, cancellationToken)

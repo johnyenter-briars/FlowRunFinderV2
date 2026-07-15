@@ -257,6 +257,12 @@
         <TextBlock x:Name="BusyTextBlock"
                    Text="Working..."
                    VerticalAlignment="Center" />
+        <Button x:Name="CancelBusyActionButton"
+                Content="Cancel"
+                MinHeight="28"
+                Padding="10,4"
+                IsVisible="False"
+                Click="OnCancelBusyActionClicked" />
       </StackPanel>
     </Border>
 

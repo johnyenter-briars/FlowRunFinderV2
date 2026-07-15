@@ -105,6 +105,20 @@ public sealed partial class MainWindow
         await RunAdvancedSearchAsync(flow, request);
     }
 
+    private void OnCancelBusyActionClicked(object? sender, RoutedEventArgs e)
+    {
+        var querySession = _activeQuerySession;
+        if (querySession is null || querySession.IsCancellationRequested)
+        {
+            return;
+        }
+
+        CancelBusyActionButton.IsEnabled = false;
+        querySession.Cancel();
+        SetStatus("Canceling query...");
+        _logger.Info("Cancel requested for active query.");
+    }
+
     private void OnTriggerColumnsClicked(object? sender, RoutedEventArgs e)
     {
         if (!TriggerColumnsPopup.IsOpen)

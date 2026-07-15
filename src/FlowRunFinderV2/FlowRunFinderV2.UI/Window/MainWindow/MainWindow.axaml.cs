@@ -37,6 +37,7 @@ public sealed partial class MainWindow : Avalonia.Controls.Window
     private string? _deviceUserCode;
     private int _busyDepth;
     private CancellationTokenSource? _toastCancellationTokenSource;
+    private FlowRunQuerySession? _activeQuerySession;
 
     public MainWindow()
     {
