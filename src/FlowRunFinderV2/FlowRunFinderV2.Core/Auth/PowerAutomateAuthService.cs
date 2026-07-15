@@ -42,7 +42,7 @@ public sealed class PowerAutomateAuthService
         _app = PublicClientApplicationBuilder
             .Create(NormalizeClientId(clientId, AuthenticationClientIds.PowerAutomate))
             .WithAuthority(AadAuthorityAudience.AzureAdMultipleOrgs)
-            .WithDefaultRedirectUri()
+            .WithRedirectUri("http://localhost")
             .Build();
 
         if (string.IsNullOrWhiteSpace(tokenCachePath))
