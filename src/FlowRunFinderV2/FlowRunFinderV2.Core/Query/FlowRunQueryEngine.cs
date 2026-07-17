@@ -83,6 +83,7 @@ public sealed class FlowRunQueryEngine : IDisposable
                     request.EndUtc,
                     request.Filter,
                     request.MaxRunsToQuery,
+                    request.Progress,
                     cancellationToken)
                 .ConfigureAwait(false)
             : await SearchRunsFromPowerAutomateAsync(
@@ -92,6 +93,7 @@ public sealed class FlowRunQueryEngine : IDisposable
                     request.EndUtc,
                     request.Filter,
                     request.MaxRunsToQuery,
+                    request.Progress,
                     cancellationToken)
                 .ConfigureAwait(false);
     }
@@ -172,6 +174,7 @@ public sealed class FlowRunQueryEngine : IDisposable
         DateTimeOffset endUtc,
         AdvancedSearchGroup filter,
         int maxRunsToQuery,
+        IProgress<FlowRunQueryProgress>? progress,
         CancellationToken cancellationToken)
     {
         if (maxRunsToQuery < 1)
@@ -186,6 +189,7 @@ public sealed class FlowRunQueryEngine : IDisposable
         var result = new List<FlowRun>();
 
         _logger?.Info($"Advanced search query started. FlowId={flowId}; StartUtc={startUtc:O}; EndUtc={endUtc:O}; Filter={FormatFilter(filter)}; Limit={maxRunsToQuery}.");
+        ReportAdvancedSearchProgress(progress, maxRunsToQuery, inspected, result.Count);
 
         while (inspected < maxRunsToQuery && !reachedOlderThanStart)
         {
@@ -201,6 +205,7 @@ public sealed class FlowRunQueryEngine : IDisposable
                 if (inspected > maxRunsToQuery)
                 {
                     _logger?.Info($"Advanced search inspection limit reached. FlowId={flowId}; Limit={maxRunsToQuery}.");
+                    ReportAdvancedSearchProgress(progress, maxRunsToQuery, maxRunsToQuery, result.Count);
                     break;
                 }
 
@@ -208,6 +213,7 @@ public sealed class FlowRunQueryEngine : IDisposable
                 if (flowRun.StartedOn == null)
                 {
                     _logger?.Debug($"Advanced search skipped run with no start time. FlowId={flowId}; RunName={flowRun.Name}; RunId={flowRun.RunId}.");
+                    ReportAdvancedSearchProgress(progress, maxRunsToQuery, inspected, result.Count);
                     continue;
                 }
 
@@ -215,6 +221,7 @@ public sealed class FlowRunQueryEngine : IDisposable
                 if (startedUtc > endUtc)
                 {
                     _logger?.Trace($"Advanced search skipped run newer than end UTC. FlowId={flowId}; RunName={flowRun.Name}; StartedUtc={startedUtc:O}; EndUtc={endUtc:O}.");
+                    ReportAdvancedSearchProgress(progress, maxRunsToQuery, inspected, result.Count);
                     continue;
                 }
 
@@ -222,6 +229,7 @@ public sealed class FlowRunQueryEngine : IDisposable
                 {
                     reachedOlderThanStart = true;
                     _logger?.Info($"Advanced search reached run older than start UTC; stopping scan. FlowId={flowId}; RunName={flowRun.Name}; StartedUtc={startedUtc:O}; StartUtc={startUtc:O}; Inspected={inspected}; Matches={result.Count}.");
+                    ReportAdvancedSearchProgress(progress, maxRunsToQuery, inspected, result.Count);
                     break;
                 }
 
@@ -237,6 +245,8 @@ public sealed class FlowRunQueryEngine : IDisposable
                 {
                     _logger?.Debug($"Advanced search rejected run by criteria. FlowId={flowId}; RunName={flowRun.Name}; StartedUtc={startedUtc:O}; Reason={criteriaDiagnostic}; TriggerKeys={flowRun.TriggerInputs.Count}.");
                 }
+
+                ReportAdvancedSearchProgress(progress, maxRunsToQuery, inspected, result.Count);
             }
 
             _logger?.Debug($"Advanced search page processed. FlowId={flowId}; Page={page}; PageRows={pageRows}; Inspected={inspected}; Matches={result.Count}; HasNext={!string.IsNullOrWhiteSpace(nextPage.NextLink)}.");
@@ -263,6 +273,7 @@ public sealed class FlowRunQueryEngine : IDisposable
         DateTimeOffset endUtc,
         AdvancedSearchGroup filter,
         int maxRunsToQuery,
+        IProgress<FlowRunQueryProgress>? progress,
         CancellationToken cancellationToken)
     {
         if (dataverseClient is null)
@@ -285,11 +296,14 @@ public sealed class FlowRunQueryEngine : IDisposable
             .ConfigureAwait(false);
 
         _logger?.Info($"Dataverse advanced search returned candidate runs. FlowId={flowId}; StartUtc={startUtc:O}; EndUtc={endUtc:O}; CandidateCount={candidateRuns.Count}; Limit={maxRunsToQuery}.");
+        ReportAdvancedSearchProgress(progress, candidateRuns.Count, 0, 0);
 
         var result = new List<FlowRun>();
+        var inspected = 0;
         foreach (var run in candidateRuns)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            inspected++;
             run.RunUrl = BuildRunUrl(environmentId, flowId, run.Name);
             _logger?.Debug($"Loading trigger inputs for Dataverse run candidate. FlowId={flowId}; RunName={run.Name ?? "<null>"}; StartedUtc={run.StartedOn?.ToString("O") ?? "<null>"}; Status={run.Status ?? "<null>"}.");
             await _client.LoadTriggerOutputsAsync(environmentId, flowId, run, cancellationToken)
@@ -304,10 +318,34 @@ public sealed class FlowRunQueryEngine : IDisposable
             {
                 _logger?.Debug($"Dataverse advanced search rejected run by criteria. FlowId={flowId}; RunName={run.Name}; StartedUtc={FormatDateTimeOffset(run.StartedOn)}; Reason={criteriaDiagnostic}; TriggerKeys={run.TriggerInputs.Count}.");
             }
+
+            ReportAdvancedSearchProgress(progress, candidateRuns.Count, inspected, result.Count);
         }
 
         _logger?.Info($"Dataverse advanced search query finished. FlowId={flowId}; Candidates={candidateRuns.Count}; Matches={result.Count}.");
         return result;
+    }
+
+    private static void ReportAdvancedSearchProgress(
+        IProgress<FlowRunQueryProgress>? progress,
+        int candidateRecordCount,
+        int scannedRecordCount,
+        int matchCount)
+    {
+        if (progress is null)
+        {
+            return;
+        }
+
+        var percentScanned = candidateRecordCount <= 0
+            ? 100
+            : (int)Math.Round(Math.Min(scannedRecordCount, candidateRecordCount) * 100.0 / candidateRecordCount);
+
+        progress.Report(new FlowRunQueryProgress(
+            candidateRecordCount,
+            scannedRecordCount,
+            matchCount,
+            percentScanned));
     }
 
     private static bool MatchesFilter(

@@ -87,60 +87,70 @@ public sealed partial class MainWindow
                 ? "Dataverse flow run history table"
                 : "Power Platform API";
             SetStatus($"Searching runs for {flow.Name}...");
+            ShowAdvancedSearchProgress();
+            var progress = new Progress<FlowRunQueryProgress>(UpdateAdvancedSearchProgress);
             _logger.Info($"Advanced search started. FlowId={flow.WorkflowId}; FlowName={flow.Name}; StartUtc={request.StartUtc:O}; EndUtc={request.EndUtc:O}; Filter={FormatFilter(request.Filter)}; Source={sourceDescription}.");
 
-            if (_powerAutomateAuthService is null)
+            try
             {
-                return;
-            }
-
-            var paToken = await _powerAutomateAuthService.GetTokenAsync(
-                ShowDeviceCodePrompt,
-                cancellationToken);
-            ClearDeviceCodePrompt();
-
-            using var queryEngine = new FlowRunQueryEngine(paToken.AccessToken, _client, _logger);
-            var environmentId = await queryEngine.DetectEnvironmentIdAsync(_environmentUrl, cancellationToken);
-            _logger.Debug($"Detected Power Automate environment for advanced search. EnvironmentId={environmentId ?? "<null>"}.");
-            if (string.IsNullOrWhiteSpace(environmentId))
-            {
-                SetStatus("Could not detect the matching Power Automate environment id.");
-                return;
-            }
-
-            var runs = await queryEngine.SearchRunsAsync(
-                new FlowRunSearchRequest(
-                    environmentId,
-                    flow.WorkflowId,
-                    request.StartUtc,
-                    request.EndUtc,
-                    request.Filter,
-                    _settings.MaxRunsToQuery,
-                    _settings.UseFlowRunHistoryTable),
-                cancellationToken);
-
-            var triggerKeys = new SortedSet<string>(AttributeNameComparer.Instance);
-            foreach (var run in runs)
-            {
-                _runs.Add(run);
-                foreach (var triggerKey in run.TriggerInputs.Keys)
+                if (_powerAutomateAuthService is null)
                 {
-                    triggerKeys.Add(triggerKey);
+                    return;
                 }
-            }
 
-            if (triggerKeys.Count > 0)
-            {
-                SetTriggerColumnOptions(flow, triggerKeys);
-            }
-            else
-            {
-                RestoreTriggerColumnOptions(flow);
-            }
+                var paToken = await _powerAutomateAuthService.GetTokenAsync(
+                    ShowDeviceCodePrompt,
+                    cancellationToken);
+                ClearDeviceCodePrompt();
 
-            RefreshRunsButton.IsEnabled = true;
-            _logger.Info($"Advanced search finished. FlowId={flow.WorkflowId}; ResultCount={_runs.Count}; TriggerKeys={triggerKeys.Count}.");
-            SetStatus($"Found {_runs.Count} runs for {flow.Name}.");
+                using var queryEngine = new FlowRunQueryEngine(paToken.AccessToken, _client, _logger);
+                var environmentId = await queryEngine.DetectEnvironmentIdAsync(_environmentUrl, cancellationToken);
+                _logger.Debug($"Detected Power Automate environment for advanced search. EnvironmentId={environmentId ?? "<null>"}.");
+                if (string.IsNullOrWhiteSpace(environmentId))
+                {
+                    SetStatus("Could not detect the matching Power Automate environment id.");
+                    return;
+                }
+
+                var runs = await queryEngine.SearchRunsAsync(
+                    new FlowRunSearchRequest(
+                        environmentId,
+                        flow.WorkflowId,
+                        request.StartUtc,
+                        request.EndUtc,
+                        request.Filter,
+                        _settings.MaxRunsToQuery,
+                        _settings.UseFlowRunHistoryTable,
+                        progress),
+                    cancellationToken);
+
+                var triggerKeys = new SortedSet<string>(AttributeNameComparer.Instance);
+                foreach (var run in runs)
+                {
+                    _runs.Add(run);
+                    foreach (var triggerKey in run.TriggerInputs.Keys)
+                    {
+                        triggerKeys.Add(triggerKey);
+                    }
+                }
+
+                if (triggerKeys.Count > 0)
+                {
+                    SetTriggerColumnOptions(flow, triggerKeys);
+                }
+                else
+                {
+                    RestoreTriggerColumnOptions(flow);
+                }
+
+                RefreshRunsButton.IsEnabled = true;
+                _logger.Info($"Advanced search finished. FlowId={flow.WorkflowId}; ResultCount={_runs.Count}; TriggerKeys={triggerKeys.Count}.");
+                SetStatus($"Found {_runs.Count} runs for {flow.Name}.");
+            }
+            finally
+            {
+                HideAdvancedSearchProgress();
+            }
         }, canCancel: true);
     }
 

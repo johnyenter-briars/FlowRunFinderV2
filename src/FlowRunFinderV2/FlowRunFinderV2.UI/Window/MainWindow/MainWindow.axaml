@@ -266,6 +266,27 @@
       </StackPanel>
     </Border>
 
+    <Border x:Name="AdvancedSearchProgressOverlay"
+            HorizontalAlignment="Left"
+            VerticalAlignment="Bottom"
+            Margin="18"
+            Padding="12"
+            CornerRadius="8"
+            Background="{DynamicResource AppPanelAltBrush}"
+            BorderBrush="{DynamicResource AppBorderBrush}"
+            BorderThickness="1"
+            IsVisible="False">
+      <Grid RowDefinitions="Auto,Auto" RowSpacing="8" Width="340">
+        <TextBlock x:Name="AdvancedSearchProgressTextBlock"
+                   Text="Candidate records: 0. 0% scanned, 0 matches" />
+        <ProgressBar x:Name="AdvancedSearchProgressBar"
+                     Grid.Row="1"
+                     Minimum="0"
+                     Maximum="100"
+                     Height="6" />
+      </Grid>
+    </Border>
+
     <Border x:Name="ToastOverlay"
             HorizontalAlignment="Center"
             VerticalAlignment="Bottom"

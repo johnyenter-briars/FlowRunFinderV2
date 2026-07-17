@@ -29,7 +29,8 @@ public sealed class FlowRunSearchRequest
         DateTimeOffset endUtc,
         AdvancedSearchGroup filter,
         int maxRunsToQuery,
-        bool useDataverseHistory)
+        bool useDataverseHistory,
+        IProgress<FlowRunQueryProgress>? progress = null)
     {
         EnvironmentId = environmentId;
         FlowId = flowId;
@@ -38,6 +39,7 @@ public sealed class FlowRunSearchRequest
         Filter = filter;
         MaxRunsToQuery = maxRunsToQuery;
         UseDataverseHistory = useDataverseHistory;
+        Progress = progress;
     }
 
     public string EnvironmentId { get; }
@@ -47,4 +49,5 @@ public sealed class FlowRunSearchRequest
     public AdvancedSearchGroup Filter { get; }
     public int MaxRunsToQuery { get; }
     public bool UseDataverseHistory { get; }
+    public IProgress<FlowRunQueryProgress>? Progress { get; }
 }

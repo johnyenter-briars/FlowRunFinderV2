@@ -85,6 +85,25 @@ public sealed partial class MainWindow
         BusyOverlay.IsVisible = _busyDepth > 0;
     }
 
+    private void ShowAdvancedSearchProgress()
+    {
+        AdvancedSearchProgressTextBlock.Text = "Candidate records: 0. 0% scanned, 0 matches";
+        AdvancedSearchProgressBar.Value = 0;
+        AdvancedSearchProgressOverlay.IsVisible = true;
+    }
+
+    private void UpdateAdvancedSearchProgress(FlowRunQueryProgress progress)
+    {
+        AdvancedSearchProgressTextBlock.Text =
+            $"Candidate records: {progress.CandidateRecordCount:N0}. {progress.PercentScanned}% scanned, {progress.MatchCount:N0} matches";
+        AdvancedSearchProgressBar.Value = progress.PercentScanned;
+    }
+
+    private void HideAdvancedSearchProgress()
+    {
+        AdvancedSearchProgressOverlay.IsVisible = false;
+    }
+
     private void ShowToast(string message)
     {
         _toastCancellationTokenSource?.Cancel();
