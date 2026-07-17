@@ -16,14 +16,21 @@ It is useful when you know a flow ran, but need to answer questions like:
 
 ## Features
 
-- Named Dataverse/Power Platform connections with cached MSAL auth.
-- Recent Power Automate run history loaded directly from the environment API.
-- Dynamic trigger-output columns, remembered per flow.
-- Searchable flow and trigger-field pickers.
-- Advanced UTC time-window search with grouped `AND` / `OR` filters.
-- `Equals` and `Contains` matching for trigger output fields.
-- Run links to make.powerautomate.com, plus right-click copy.
-- Local daily logs with configurable verbosity.
+| Status | Feature | Details |
+| --- | --- | --- |
+| ✅ | Named connections | Save multiple Dataverse/Power Platform environments with cached MSAL authentication. |
+| ✅ | Interactive and device-code sign-in | Use the default browser-based flow or switch to device-code authentication in Settings. |
+| ✅ | Flow picker | Search flows by name or workflow ID. |
+| ✅ | Run history | Load recent runs from the Power Automate API or the Dataverse `flowruns` history table. |
+| ✅ | Dynamic trigger columns | Discover trigger-output fields from loaded runs, choose visible columns, and remember selections per flow. |
+| ✅ | Advanced search | Search a UTC time window using grouped `AND` / `OR` filters with `Equals` and `Contains` comparisons. |
+| ✅ | Search progress and cancellation | See candidate, scanned, and match counts while an advanced search runs, and cancel it when needed. |
+| ✅ | Run links and copy actions | Open runs in make.powerautomate.com or right-click to copy run links and grid values. |
+| ✅ | Local logging | Write daily logs locally with configurable verbosity, including match criteria at debug level. |
+| ⏳ | Filter by flow status | Filter results by run status, such as `Succeeded`, `Failed`, or `Canceled`. |
+| ⏳ | Export results | Export the current run list and selected trigger columns to CSV or another file format. |
+| ⏳ | Action-level run inspection | Inspect individual actions and their inputs/outputs inside a run. |
+| ⏳ | Saved search presets | Save and reuse advanced-search time windows and filter groups. |
 
 ## Screenshots
 
@@ -72,6 +79,8 @@ websiteurl contains contoso
 
 Advanced search scans run history newest-to-oldest. It avoids loading trigger payloads until a run is inside the requested time window, which keeps older searches from doing unnecessary work.
 
+While an advanced search is running, the app reports its candidate count, scan progress, and current match count. Use `Cancel` in the busy indicator to stop a long-running query.
+
 ## Local Files
 
 The app keeps its local data here:
@@ -87,6 +96,12 @@ Notable files and folders:
 - `logs`: daily log files
 
 ## Development
+
+Build the solution with:
+
+```powershell
+dotnet build .\src\FlowRunFinderV2\FlowRunFinderV2.sln
+```
 
 | Project | Description |
 | --- | --- |
