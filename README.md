@@ -8,11 +8,8 @@ Flow Run Finder V2 is a desktop tool for finding Power Automate flow runs and in
 
 It is useful when you know a flow ran, but need to answer questions like:
 
-- Which run handled this record?
-- What trigger payload did the flow receive?
-- Did any runs fire for this account, contact, row id, user id, status, or other trigger value?
-- What happened during a specific UTC time window?
-- Which trigger fields are worth comparing across recent runs?
+- Which run handled the update of this record?
+- What happened during a specific time window?
 
 ## Features
 
@@ -31,6 +28,7 @@ It is useful when you know a flow ran, but need to answer questions like:
 | ⏳ | Export results | Export the current run list and selected trigger columns to CSV or another file format. |
 | ⏳ | Action-level run inspection | Inspect individual actions and their inputs/outputs inside a run. |
 | ⏳ | Saved search presets | Save and reuse advanced-search time windows and filter groups. |
+| ⏳ | Multiple flow queries | Query identical trigger conditions, but across multiple flows |
 
 ## Screenshots
 
