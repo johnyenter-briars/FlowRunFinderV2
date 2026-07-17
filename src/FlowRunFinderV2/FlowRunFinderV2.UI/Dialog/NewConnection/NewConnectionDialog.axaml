@@ -1,0 +1,41 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="FlowRunFinderV2.UI.Dialog.NewConnectionDialog"
+        Title="New Connection"
+        Width="560"
+        Height="260"
+        MinWidth="500"
+        MinHeight="240"
+        WindowStartupLocation="CenterOwner">
+  <Grid RowDefinitions="Auto,Auto,Auto,Auto" ColumnDefinitions="Auto,*" Margin="16" RowSpacing="10" ColumnSpacing="10">
+    <TextBlock Text="Connection name"
+               VerticalAlignment="Center" />
+    <TextBox x:Name="NameTextBox"
+             Grid.Column="1"
+             Watermark="Production" />
+
+    <TextBlock Grid.Row="1"
+               Text="Environment URL"
+               VerticalAlignment="Center" />
+    <TextBox x:Name="EnvironmentUrlTextBox"
+             Grid.Row="1"
+             Grid.Column="1"
+             Watermark="https://yourorg.crm.dynamics.com" />
+
+    <TextBlock x:Name="ValidationTextBlock"
+               Grid.Row="2"
+               Grid.ColumnSpan="2"
+               Foreground="{DynamicResource SystemControlErrorTextForegroundBrush}" />
+
+    <StackPanel Grid.Row="3"
+                Grid.ColumnSpan="2"
+                Orientation="Horizontal"
+                HorizontalAlignment="Right"
+                Spacing="8">
+      <Button Content="Cancel"
+              Click="OnCancelClicked" />
+      <Button Content="Connect"
+              Click="OnConnectClicked" />
+    </StackPanel>
+  </Grid>
+</Window>

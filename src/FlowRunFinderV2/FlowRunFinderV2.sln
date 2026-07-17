@@ -2,7 +2,14 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FlowRunFinderV2", "FlowRunFinderV2\FlowRunFinderV2.csproj", "{C356BFD3-714C-41BD-83A8-7F0A2F351BB7}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FlowRunFinderV2.UI", "FlowRunFinderV2.UI\FlowRunFinderV2.UI.csproj", "{C356BFD3-714C-41BD-83A8-7F0A2F351BB7}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FlowRunFinderV2.Core", "FlowRunFinderV2.Core\FlowRunFinderV2.Core.csproj", "{50FE6C15-CA1F-4BB6-8A22-10512FECBA39}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{A6A5F7C9-6B8E-4E4B-9C2C-5E84F1E1B3A7}"
+	ProjectSection(SolutionItems) = preProject
+		Directory.Build.props = Directory.Build.props
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -14,6 +21,10 @@ Global
 		{C356BFD3-714C-41BD-83A8-7F0A2F351BB7}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C356BFD3-714C-41BD-83A8-7F0A2F351BB7}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C356BFD3-714C-41BD-83A8-7F0A2F351BB7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{50FE6C15-CA1F-4BB6-8A22-10512FECBA39}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{50FE6C15-CA1F-4BB6-8A22-10512FECBA39}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{50FE6C15-CA1F-4BB6-8A22-10512FECBA39}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{50FE6C15-CA1F-4BB6-8A22-10512FECBA39}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

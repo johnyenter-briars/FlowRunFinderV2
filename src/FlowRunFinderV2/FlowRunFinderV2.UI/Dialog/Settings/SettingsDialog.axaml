@@ -1,0 +1,78 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="FlowRunFinderV2.UI.Dialog.SettingsDialog"
+        Title="Settings"
+        Width="560"
+        Height="470"
+        MinWidth="380"
+        MinHeight="200"
+        WindowStartupLocation="CenterOwner">
+  <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*" ColumnDefinitions="Auto,*" Margin="16" RowSpacing="10" ColumnSpacing="10">
+    <TextBlock Text="Default runs"
+               VerticalAlignment="Center" />
+    <NumericUpDown x:Name="DefaultRunCountNumeric"
+                   Grid.Column="1"
+                   Minimum="1"
+                   Maximum="100"
+                   Increment="1" />
+
+    <TextBlock Grid.Row="1"
+               Text="Max runs to query"
+               VerticalAlignment="Center" />
+    <NumericUpDown x:Name="MaxRunsToQueryNumeric"
+                   Grid.Row="1"
+                   Grid.Column="1"
+                   Minimum="1"
+                   Increment="100" />
+
+    <CheckBox x:Name="UseFlowRunHistoryTableCheckBox"
+              Grid.Row="2"
+              Grid.ColumnSpan="2"
+              Content="Use flow run history table" />
+
+    <TextBlock Grid.Row="3"
+               Text="Auth flow"
+               VerticalAlignment="Center" />
+    <ComboBox x:Name="AuthenticationFlowComboBox"
+              Grid.Row="3"
+              Grid.Column="1" />
+
+    <TextBlock Grid.Row="4"
+               Text="Dataverse client ID"
+               VerticalAlignment="Center" />
+    <TextBox x:Name="DataverseClientIdTextBox"
+             Grid.Row="4"
+             Grid.Column="1" />
+
+    <TextBlock Grid.Row="5"
+               Text="Power Automate client ID"
+               VerticalAlignment="Center" />
+    <TextBox x:Name="PowerAutomateClientIdTextBox"
+             Grid.Row="5"
+             Grid.Column="1" />
+
+    <TextBlock Grid.Row="6"
+               Text="Log mode"
+               VerticalAlignment="Center" />
+    <ComboBox x:Name="LogVerbosityComboBox"
+              Grid.Row="6"
+              Grid.Column="1" />
+
+    <TextBlock x:Name="ValidationTextBlock"
+               Grid.Row="7"
+               Grid.ColumnSpan="2"
+               Foreground="{DynamicResource SystemControlErrorTextForegroundBrush}" />
+
+    <StackPanel Grid.Row="8"
+                Grid.ColumnSpan="2"
+                Orientation="Horizontal"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Bottom"
+                Spacing="8">
+      <Button Content="Cancel"
+              Click="OnCancelClicked" />
+      <Button Content="Save"
+              Click="OnSaveClicked" />
+    </StackPanel>
+  </Grid>
+</Window>
